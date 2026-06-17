@@ -10,6 +10,7 @@ from osoznanie.recall import ProvenanceRef, ReasonCode, ScoreBreakdown
 
 from .audit_policy import RankingPolicyRef
 from .claims import SyntheticClaim
+from .filter_contracts import FilterSummary
 from .models import RetrievedLessonSnapshot, StrategyName
 from .path_contracts import (
     DecisionPathReasonCode,
@@ -18,7 +19,7 @@ from .path_contracts import (
 )
 from .simulation_models import SimulatedDecision
 
-AUDIT_VERSION = "restricted-decision-path-audit-v0.1"
+AUDIT_VERSION = "restricted-decision-path-audit-v0.2"
 
 
 class AuditRetrievedLesson(BaseModel):
@@ -60,6 +61,7 @@ class RestrictedDecisionPathAudit(BaseModel):
     policy_name: str = Field(min_length=1)
     claim: SyntheticClaim
     ranking_policy: RankingPolicyRef | None
+    filter_summary: FilterSummary | None = None
     returned_lessons: list[AuditRetrievedLesson] = Field(default_factory=list)
     decision: SimulatedDecision
     status: DecisionPathStatus
@@ -69,18 +71,28 @@ class RestrictedDecisionPathAudit(BaseModel):
     def validate_contract(self) -> RestrictedDecisionPathAudit:
         validate_status_reason(self.status, self.reason_code)
         if self.strategy is StrategyName.NO_MEMORY:
-            if self.ranking_policy is not None or self.returned_lessons:
-                raise ValueError("no-memory audit cannot contain ranked lessons")
+            if (
+                self.ranking_policy is not None
+                or self.returned_lessons
+                or self.filter_summary is not None
+            ):
+                raise ValueError(
+                    "no-memory audit cannot contain ranking or filter diagnostics"
+                )
             return self
         if self.ranking_policy is None:
             raise ValueError("retrieval audit requires a ranking policy")
         if self.strategy is StrategyName.OSOZNANIE_RECALL:
+            if self.filter_summary is None:
+                raise ValueError("Osoznanie audit requires a filter summary")
             for lesson in self.returned_lessons:
                 if lesson.score_breakdown is None:
                     raise ValueError("Osoznanie lesson requires score breakdown")
                 if not lesson.provenance_refs:
                     raise ValueError("Osoznanie lesson requires provenance")
         if self.strategy is StrategyName.NAIVE_KEYWORD:
+            if self.filter_summary is not None:
+                raise ValueError("naive keyword has no structured filter summary")
             for lesson in self.returned_lessons:
                 if lesson.score_breakdown is not None:
                     raise ValueError("naive keyword has no score breakdown")
