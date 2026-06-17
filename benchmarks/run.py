@@ -37,7 +37,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{item.strategy.value}: hit@1={item.hit_rate_at_1:.3f}, "
             f"hit@3={item.hit_rate_at_3:.3f}, "
             f"mrr={item.mean_reciprocal_rank:.3f}, "
-            f"fpr={item.mean_false_positive_rate:.3f}"
+            f"fdr={item.mean_false_discovery_rate:.3f}, "
+            f"dsr={item.mean_decoy_selection_rate:.3f}"
         )
     return 0
 
