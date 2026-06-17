@@ -33,7 +33,7 @@ def render_schema(record_type: str, model: type[ProtocolRecord]) -> str:
     return json.dumps(
         build_schema(record_type, model),
         ensure_ascii=False,
-        indent=2,
+        separators=(",", ":"),
         sort_keys=True,
     ) + "\n"
 
