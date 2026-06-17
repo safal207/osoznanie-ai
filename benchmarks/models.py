@@ -36,7 +36,7 @@ class ErrorSignature(BaseModel):
     domain: str
     task_type: str
     pattern_id: str
-    version: int = Field(default=1, ge=1)
+    version: int = Field(ge=1)
 
     @field_validator("domain", "task_type", "pattern_id")
     @classmethod
@@ -110,8 +110,9 @@ class ScenarioMetrics(BaseModel):
     hit_at_1: bool
     hit_at_3: bool
     reciprocal_rank: float = Field(ge=0.0, le=1.0)
-    false_positive_rate: float = Field(ge=0.0, le=1.0)
-    score_gap: float | None = Field(default=None, ge=-1.0, le=1.0)
+    false_discovery_rate: float = Field(ge=0.0, le=1.0)
+    decoy_selection_rate: float = Field(ge=0.0, le=1.0)
+    returned_score_gap: float | None = Field(default=None, ge=-1.0, le=1.0)
     ranked_lessons: list[RankedLesson]
 
 
@@ -123,8 +124,9 @@ class AggregateMetrics(BaseModel):
     hit_rate_at_1: float = Field(ge=0.0, le=1.0)
     hit_rate_at_3: float = Field(ge=0.0, le=1.0)
     mean_reciprocal_rank: float = Field(ge=0.0, le=1.0)
-    mean_false_positive_rate: float = Field(ge=0.0, le=1.0)
-    mean_score_gap: float | None = Field(default=None, ge=-1.0, le=1.0)
+    mean_false_discovery_rate: float = Field(ge=0.0, le=1.0)
+    mean_decoy_selection_rate: float = Field(ge=0.0, le=1.0)
+    mean_returned_score_gap: float | None = Field(default=None, ge=-1.0, le=1.0)
 
 
 class BenchmarkReport(BaseModel):

@@ -15,7 +15,7 @@ from .models import (
 )
 from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
-BENCHMARK_VERSION = "retrieval-quality-v0.1"
+BENCHMARK_VERSION = "retrieval-quality-v0.2"
 CLAIM = (
     "This report measures deterministic retrieval quality for synthetic "
     "repeated-error fixtures; it does not measure real LLM behavioral impact."
@@ -36,18 +36,26 @@ def evaluate_case(
         now=BENCHMARK_NOW,
     )
     relevant_ids = set(case.scenario.relevant_lesson_ids)
+    decoy_ids = set(case.scenario.decoy_lesson_ids)
+
     relevant_items = [item for item in ranked if item.lesson_id in relevant_ids]
-    false_positives = [item for item in ranked if item.lesson_id not in relevant_ids]
+    false_discoveries = [item for item in ranked if item.lesson_id not in relevant_ids]
+    returned_decoys = [item for item in ranked if item.lesson_id in decoy_ids]
 
     relevant_rank = min((item.rank for item in relevant_items), default=None)
     reciprocal_rank = 0.0 if relevant_rank is None else 1.0 / relevant_rank
-    false_positive_rate = 0.0 if not ranked else len(false_positives) / len(ranked)
+    false_discovery_rate = (
+        0.0 if not ranked else len(false_discoveries) / len(ranked)
+    )
+    decoy_selection_rate = (
+        0.0 if not decoy_ids else len(returned_decoys) / len(decoy_ids)
+    )
 
-    score_gap: float | None = None
-    if relevant_items:
+    returned_score_gap: float | None = None
+    if relevant_items and returned_decoys:
         best_relevant = max(item.score for item in relevant_items)
-        best_decoy = max((item.score for item in false_positives), default=0.0)
-        score_gap = best_relevant - best_decoy
+        best_decoy = max(item.score for item in returned_decoys)
+        returned_score_gap = best_relevant - best_decoy
 
     return ScenarioMetrics(
         scenario_id=case.scenario.scenario_id,
@@ -57,8 +65,11 @@ def evaluate_case(
         hit_at_1=relevant_rank == 1,
         hit_at_3=relevant_rank is not None and relevant_rank <= 3,
         reciprocal_rank=_round(reciprocal_rank),
-        false_positive_rate=_round(false_positive_rate),
-        score_gap=None if score_gap is None else _round(score_gap),
+        false_discovery_rate=_round(false_discovery_rate),
+        decoy_selection_rate=_round(decoy_selection_rate),
+        returned_score_gap=(
+            None if returned_score_gap is None else _round(returned_score_gap)
+        ),
         ranked_lessons=ranked,
     )
 
@@ -67,17 +78,26 @@ def _aggregate(
     strategy: StrategyName,
     results: list[ScenarioMetrics],
 ) -> AggregateMetrics:
-    score_gaps = [item.score_gap for item in results if item.score_gap is not None]
+    returned_score_gaps = [
+        item.returned_score_gap
+        for item in results
+        if item.returned_score_gap is not None
+    ]
     return AggregateMetrics(
         strategy=strategy,
         scenario_count=len(results),
         hit_rate_at_1=_round(fmean(float(item.hit_at_1) for item in results)),
         hit_rate_at_3=_round(fmean(float(item.hit_at_3) for item in results)),
         mean_reciprocal_rank=_round(fmean(item.reciprocal_rank for item in results)),
-        mean_false_positive_rate=_round(
-            fmean(item.false_positive_rate for item in results)
+        mean_false_discovery_rate=_round(
+            fmean(item.false_discovery_rate for item in results)
         ),
-        mean_score_gap=_round(fmean(score_gaps)) if score_gaps else None,
+        mean_decoy_selection_rate=_round(
+            fmean(item.decoy_selection_rate for item in results)
+        ),
+        mean_returned_score_gap=(
+            _round(fmean(returned_score_gaps)) if returned_score_gaps else None
+        ),
     )
 
 
@@ -118,15 +138,23 @@ def render_markdown(report: BenchmarkReport) -> str:
         "",
         "## Aggregate results",
         "",
-        "| Strategy | Hit@1 | Hit@3 | MRR | False-positive rate | Mean score gap |",
-        "|---|---:|---:|---:|---:|---:|",
+        (
+            "| Strategy | Hit@1 | Hit@3 | MRR | FDR | Decoy selection rate | "
+            "Returned score gap |"
+        ),
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for item in report.aggregates:
-        gap = "—" if item.mean_score_gap is None else f"{item.mean_score_gap:.6f}"
+        gap = (
+            "—"
+            if item.mean_returned_score_gap is None
+            else f"{item.mean_returned_score_gap:.6f}"
+        )
         lines.append(
             f"| `{item.strategy.value}` | {item.hit_rate_at_1:.6f} | "
             f"{item.hit_rate_at_3:.6f} | {item.mean_reciprocal_rank:.6f} | "
-            f"{item.mean_false_positive_rate:.6f} | {gap} |"
+            f"{item.mean_false_discovery_rate:.6f} | "
+            f"{item.mean_decoy_selection_rate:.6f} | {gap} |"
         )
 
     lines.extend(
@@ -134,20 +162,37 @@ def render_markdown(report: BenchmarkReport) -> str:
             "",
             "## Scenario results",
             "",
-            "| Scenario | Strategy | Relevant rank | Returned | FPR | Score gap |",
-            "|---|---|---:|---:|---:|---:|",
+            (
+                "| Scenario | Strategy | Relevant rank | Returned | FDR | "
+                "Decoy selection rate | Returned score gap |"
+            ),
+            "|---|---|---:|---:|---:|---:|---:|",
         ]
     )
     for item in report.scenario_results:
         rank = "—" if item.relevant_rank is None else str(item.relevant_rank)
-        gap = "—" if item.score_gap is None else f"{item.score_gap:.6f}"
+        gap = (
+            "—"
+            if item.returned_score_gap is None
+            else f"{item.returned_score_gap:.6f}"
+        )
         lines.append(
             f"| `{item.scenario_id}` | `{item.strategy.value}` | {rank} | "
-            f"{item.returned_count} | {item.false_positive_rate:.6f} | {gap} |"
+            f"{item.returned_count} | {item.false_discovery_rate:.6f} | "
+            f"{item.decoy_selection_rate:.6f} | {gap} |"
         )
 
     lines.extend(
         [
+            "",
+            "## Metric semantics",
+            "",
+            "- **FDR** = returned non-relevant lessons / all returned lessons.",
+            "- **Decoy selection rate** = returned known decoys / all known decoys.",
+            (
+                "- **Returned score gap** is defined only when both a relevant lesson "
+                "and at least one known decoy are returned."
+            ),
             "",
             "## Interpretation boundary",
             "",
