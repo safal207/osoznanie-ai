@@ -16,6 +16,14 @@ from osoznanie.models import (
     Reflection,
     Trait,
 )
+from osoznanie.recall import (
+    ProvenanceRef,
+    ProvenanceType,
+    ReasonCode,
+    RecallQuery,
+    RecallResult,
+    ScoreBreakdown,
+)
 from osoznanie.schema import schema_documents, sync_schemas
 
 SCHEMA_DIR = Path("schemas")
@@ -48,6 +56,11 @@ def sample_records():
         ),
         "lesson.schema.json": Lesson(
             statement="Test supported mobile browsers before approving checkout releases.",
+            scope={
+                "domain": "quality-assurance",
+                "task_types": ["checkout-release-validation"],
+                "tags": ["checkout", "chrome"],
+            },
             source_reflection_ids=["ref_1"],
             confidence=0.88,
         ),
@@ -66,6 +79,33 @@ def sample_records():
             agent_id="agent_qa",
             version=1,
             change_summary="Created the first accountable identity snapshot.",
+        ),
+        "recall-query.schema.json": RecallQuery(
+            agent_id="agent_qa",
+            requester_id="human_alexey",
+            domain="quality-assurance",
+            task_type="checkout-release-validation",
+            tags=["checkout", "chrome"],
+        ),
+        "recall-result.schema.json": RecallResult(
+            lesson_id="les_1",
+            statement="Test supported mobile browsers.",
+            score=0.9,
+            score_breakdown=ScoreBreakdown(
+                scope_match=0.9,
+                confidence=0.88,
+                evidence_trust=1.0,
+                recency=0.9,
+            ),
+            reason_codes=[
+                ReasonCode.EXACT_TASK_TYPE_MATCH,
+                ReasonCode.VERIFIED_EVIDENCE,
+            ],
+            provenance=[
+                ProvenanceRef(id="les_1", type=ProvenanceType.LESSON),
+                ProvenanceRef(id="evd_1", type=ProvenanceType.EVIDENCE),
+            ],
+            explanation="Selected because it matches the task and verified evidence.",
         ),
     }
 
