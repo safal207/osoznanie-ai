@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .models import RECORD_MODELS, ProtocolRecord, Record
+from .models import RECORD_MODELS, Record
 
 
 class StorageError(RuntimeError):
