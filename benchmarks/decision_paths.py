@@ -8,7 +8,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .fixtures import BENCHMARK_NOW
 from .models import StrategyName
 from .policies import DecisionPolicy, TopActionableLessonPolicy
 from .simulation_fixtures import DecisionSimulationCase
@@ -17,6 +16,7 @@ from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
 PATH_GRAPH_VERSION = "decision-path-v0.1"
 _SLUG_PATTERN = re.compile(r"[^a-z0-9_-]+")
+_NODE_ID_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class DecisionPathNodeKind(StrEnum):
@@ -48,8 +48,8 @@ class DecisionPathNode(BaseModel):
     @classmethod
     def validate_node_id(cls, value: str) -> str:
         value = value.strip()
-        if not value:
-            raise ValueError("node_id must not be blank")
+        if not _NODE_ID_PATTERN.fullmatch(value):
+            raise ValueError("node_id must be a Mermaid-safe identifier")
         return value
 
     @field_validator("label")
@@ -135,7 +135,12 @@ def _slug(value: str) -> str:
 
 
 def _node_id(graph_id: str, suffix: str) -> str:
-    return f"{graph_id}__{suffix}"
+    raw = f"node__{graph_id}__{suffix}"
+    return re.sub(r"[^A-Za-z0-9_]", "_", raw)
+
+
+def _edge_id(graph_id: str, suffix: str) -> str:
+    return f"{graph_id}__edge_{suffix}"
 
 
 def _status(result: DecisionTrialResult) -> DecisionPathStatus:
@@ -162,13 +167,12 @@ def build_decision_path_graph(
     policy: DecisionPolicy,
     result: DecisionTrialResult,
 ) -> DecisionPathGraph:
-    graph_id = f"{_slug(case.scenario.scenario_id)}--{_slug(strategy.name.value)}"
-    ranked = strategy.rank(
-        case.retrieval_case.scenario.query,
-        case.retrieval_case.store,
-        now=BENCHMARK_NOW,
-    )
+    if result.strategy is not strategy.name:
+        raise ValueError("trial result strategy does not match graph strategy")
+    if result.scenario_id != case.scenario.scenario_id:
+        raise ValueError("trial result scenario does not match graph scenario")
 
+    graph_id = f"{_slug(case.scenario.scenario_id)}--{_slug(strategy.name.value)}"
     task_id = _node_id(graph_id, "task")
     retrieval_id = _node_id(graph_id, "retrieval")
     policy_id = _node_id(graph_id, "policy")
@@ -190,12 +194,12 @@ def build_decision_path_graph(
             node_id=retrieval_id,
             kind=DecisionPathNodeKind.RETRIEVAL,
             label=f"Retrieval: {strategy.name.value}",
-            metadata=_metadata(returned_count=len(ranked)),
+            metadata=_metadata(returned_count=result.returned_lesson_count),
         ),
     ]
     edges = [
         DecisionPathEdge(
-            edge_id=f"{graph_id}__edge_task_retrieval",
+            edge_id=_edge_id(graph_id, "task_retrieval"),
             source_node_id=task_id,
             target_node_id=retrieval_id,
             relation="requests_memory",
@@ -203,31 +207,28 @@ def build_decision_path_graph(
     ]
 
     lesson_node_ids: list[str] = []
-    for ranked_lesson in sorted(ranked, key=lambda item: item.rank):
-        lesson_node_id = _node_id(graph_id, f"lesson_{ranked_lesson.rank}")
+    for rank, lesson_id in enumerate(result.returned_lesson_ids, start=1):
+        lesson_node_id = _node_id(graph_id, f"lesson_{rank}")
         lesson_node_ids.append(lesson_node_id)
-        recommendation = case.scenario.recommendations.get(ranked_lesson.lesson_id)
+        recommendation = case.scenario.recommendations.get(lesson_id)
         nodes.append(
             DecisionPathNode(
                 node_id=lesson_node_id,
                 kind=DecisionPathNodeKind.LESSON,
-                label=f"Lesson #{ranked_lesson.rank}: {ranked_lesson.lesson_id}",
+                label=f"Lesson #{rank}: {lesson_id}",
                 metadata=_metadata(
-                    lesson_id=ranked_lesson.lesson_id,
-                    rank=ranked_lesson.rank,
+                    lesson_id=lesson_id,
+                    rank=rank,
                     recommended_action=(
                         recommendation.action_id if recommendation else None
                     ),
-                    applied=(
-                        ranked_lesson.lesson_id
-                        in result.decision.applied_lesson_ids
-                    ),
+                    applied=(lesson_id in result.decision.applied_lesson_ids),
                 ),
             )
         )
         edges.append(
             DecisionPathEdge(
-                edge_id=f"{graph_id}__edge_retrieval_lesson_{ranked_lesson.rank}",
+                edge_id=_edge_id(graph_id, f"retrieval_lesson_{rank}"),
                 source_node_id=retrieval_id,
                 target_node_id=lesson_node_id,
                 relation="returns",
@@ -240,7 +241,7 @@ def build_decision_path_graph(
                 node_id=policy_id,
                 kind=DecisionPathNodeKind.POLICY,
                 label=f"Policy: {policy.name}",
-                metadata=_metadata(lesson_count=len(ranked)),
+                metadata=_metadata(lesson_count=result.returned_lesson_count),
             ),
             DecisionPathNode(
                 node_id=decision_id,
@@ -276,10 +277,10 @@ def build_decision_path_graph(
     )
 
     if lesson_node_ids:
-        for index, lesson_node_id in enumerate(lesson_node_ids, start=1):
+        for rank, lesson_node_id in enumerate(lesson_node_ids, start=1):
             edges.append(
                 DecisionPathEdge(
-                    edge_id=f"{graph_id}__edge_lesson_{index}_policy",
+                    edge_id=_edge_id(graph_id, f"lesson_{rank}_policy"),
                     source_node_id=lesson_node_id,
                     target_node_id=policy_id,
                     relation="considered_by",
@@ -288,7 +289,7 @@ def build_decision_path_graph(
     else:
         edges.append(
             DecisionPathEdge(
-                edge_id=f"{graph_id}__edge_retrieval_policy",
+                edge_id=_edge_id(graph_id, "retrieval_policy"),
                 source_node_id=retrieval_id,
                 target_node_id=policy_id,
                 relation="returns_empty",
@@ -298,13 +299,13 @@ def build_decision_path_graph(
     edges.extend(
         [
             DecisionPathEdge(
-                edge_id=f"{graph_id}__edge_policy_decision",
+                edge_id=_edge_id(graph_id, "policy_decision"),
                 source_node_id=policy_id,
                 target_node_id=decision_id,
                 relation="selects",
             ),
             DecisionPathEdge(
-                edge_id=f"{graph_id}__edge_decision_outcome",
+                edge_id=_edge_id(graph_id, "decision_outcome"),
                 source_node_id=decision_id,
                 target_node_id=outcome_id,
                 relation="evaluated_as",
@@ -358,7 +359,7 @@ def build_decision_path_bundle(
     ]
     manifest = DecisionPathManifest(
         manifest_version=PATH_GRAPH_VERSION,
-        evaluated_at=BENCHMARK_NOW.isoformat(),
+        evaluated_at=simulation_report.evaluated_at.isoformat(),
         graph_count=len(graphs),
         entries=entries,
     )
