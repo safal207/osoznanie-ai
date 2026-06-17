@@ -1,6 +1,7 @@
 """Public package interface for Osoznanie AI."""
 
 from .models import (
+    AccessPolicy,
     Commitment,
     CommitmentStatus,
     Decision,
@@ -9,6 +10,7 @@ from .models import (
     Hypothesis,
     IdentitySnapshot,
     Lesson,
+    LessonScope,
     Outcome,
     OutcomeStatus,
     Reflection,
@@ -16,6 +18,16 @@ from .models import (
     TraitStability,
     TrustLevel,
     ValidationStatus,
+)
+from .recall import (
+    ProvenanceRef,
+    ProvenanceType,
+    ReasonCode,
+    RecallEngine,
+    RecallQuery,
+    RecallResult,
+    RiskLevel,
+    ScoreBreakdown,
 )
 from .storage import (
     DuplicateRecordError,
@@ -27,6 +39,7 @@ from .storage import (
 )
 
 __all__ = [
+    "AccessPolicy",
     "Commitment",
     "CommitmentStatus",
     "Decision",
@@ -36,13 +49,22 @@ __all__ = [
     "Hypothesis",
     "IdentitySnapshot",
     "Lesson",
+    "LessonScope",
     "MissingReferenceError",
     "Outcome",
     "OutcomeStatus",
+    "ProvenanceRef",
+    "ProvenanceType",
+    "ReasonCode",
+    "RecallEngine",
+    "RecallQuery",
+    "RecallResult",
     "RecordNotFoundError",
     "ReferencedRecordError",
     "Reflection",
+    "RiskLevel",
     "SQLiteExperienceStore",
+    "ScoreBreakdown",
     "StorageError",
     "Trait",
     "TraitStability",
