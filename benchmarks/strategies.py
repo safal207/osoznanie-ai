@@ -9,7 +9,7 @@ from typing import Protocol
 from osoznanie.models import Lesson
 from osoznanie.recall import RecallEngine, RecallQuery, RecallStore
 
-from .models import RankedLesson, StrategyName
+from .models import RetrievedLessonSnapshot, StrategyName
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -23,7 +23,7 @@ class RetrievalStrategy(Protocol):
         store: RecallStore,
         *,
         now: datetime,
-    ) -> list[RankedLesson]: ...
+    ) -> list[RetrievedLessonSnapshot]: ...
 
 
 def _tokens(value: str) -> set[str]:
@@ -44,7 +44,7 @@ class NoMemoryStrategy:
         store: RecallStore,
         *,
         now: datetime,
-    ) -> list[RankedLesson]:
+    ) -> list[RetrievedLessonSnapshot]:
         del query, store, now
         return []
 
@@ -64,7 +64,7 @@ class NaiveKeywordStrategy:
         store: RecallStore,
         *,
         now: datetime,
-    ) -> list[RankedLesson]:
+    ) -> list[RetrievedLessonSnapshot]:
         del now
         query_tokens = _query_tokens(query)
         if not query_tokens:
@@ -82,7 +82,11 @@ class NaiveKeywordStrategy:
 
         scored.sort(key=lambda item: (-item[1], item[0]))
         return [
-            RankedLesson(lesson_id=lesson_id, score=score, rank=index)
+            RetrievedLessonSnapshot(
+                lesson_id=lesson_id,
+                score=score,
+                rank=index,
+            )
             for index, (lesson_id, score) in enumerate(
                 scored[: query.max_items],
                 start=1,
@@ -99,10 +103,17 @@ class OsoznanieRecallStrategy:
         store: RecallStore,
         *,
         now: datetime,
-    ) -> list[RankedLesson]:
+    ) -> list[RetrievedLessonSnapshot]:
         results = RecallEngine(store).recall(query, now=now)
         return [
-            RankedLesson(lesson_id=result.lesson_id, score=result.score, rank=index)
+            RetrievedLessonSnapshot(
+                lesson_id=result.lesson_id,
+                score=result.score,
+                rank=index,
+                score_breakdown=result.score_breakdown,
+                reason_codes=result.reason_codes,
+                provenance_refs=result.provenance,
+            )
             for index, result in enumerate(results, start=1)
         ]
 

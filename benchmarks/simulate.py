@@ -9,26 +9,25 @@ from statistics import fmean
 from osoznanie.models import Lesson
 from osoznanie.storage import RecordNotFoundError
 
+from .claims import PolicyKind, build_synthetic_claim
 from .fixtures import BENCHMARK_NOW
-from .models import RankedLesson, StrategyName
+from .models import RetrievedLessonSnapshot, StrategyName
 from .policies import DecisionPolicy, TopActionableLessonPolicy
+from .report_contracts import (
+    AuditedDecisionTrialResult,
+    StructuredDecisionSimulationReport,
+)
 from .simulation_fixtures import DecisionSimulationCase
 from .simulation_models import (
     DecisionAggregateMetrics,
     DecisionDisposition,
-    DecisionSimulationReport,
-    DecisionTrialResult,
     PolicyInput,
     PolicyLesson,
     SimulatedDecision,
 )
 from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
-SIMULATION_VERSION = "decision-policy-v0.2"
-CLAIM = (
-    "This report measures a deterministic policy simulation over synthetic "
-    "fixtures; it does not measure real LLM behavioral impact."
-)
+SIMULATION_VERSION = "decision-policy-v0.3"
 
 
 class SimulationInputError(RuntimeError):
@@ -45,7 +44,7 @@ def _round(value: float) -> float:
 
 def _policy_lessons(
     case: DecisionSimulationCase,
-    ranked_lessons: list[RankedLesson],
+    ranked_lessons: list[RetrievedLessonSnapshot],
 ) -> list[PolicyLesson]:
     lessons: list[PolicyLesson] = []
     for ranked in sorted(ranked_lessons, key=lambda item: item.rank):
@@ -87,7 +86,7 @@ def evaluate_decision_trial(
     case: DecisionSimulationCase,
     strategy: RetrievalStrategy,
     policy: DecisionPolicy,
-) -> DecisionTrialResult:
+) -> AuditedDecisionTrialResult:
     ranked = strategy.rank(
         case.retrieval_case.scenario.query,
         case.retrieval_case.store,
@@ -99,11 +98,12 @@ def evaluate_decision_trial(
     )
     decision = _run_deterministically(policy, policy_input)
 
-    return DecisionTrialResult(
+    return AuditedDecisionTrialResult(
         scenario_id=case.scenario.scenario_id,
         strategy=strategy.name,
-        returned_lesson_count=len(policy_input.lessons),
-        returned_lesson_ids=[lesson.lesson_id for lesson in policy_input.lessons],
+        returned_lesson_count=len(ranked),
+        returned_lesson_ids=[item.lesson_id for item in ranked],
+        returned_lessons=ranked,
         decision=decision,
         correct=decision.action_id == case.scenario.safe_action_id,
         repeated_error=(
@@ -116,7 +116,7 @@ def evaluate_decision_trial(
 
 def _aggregate(
     strategy: StrategyName,
-    results: list[DecisionTrialResult],
+    results: list[AuditedDecisionTrialResult],
 ) -> DecisionAggregateMetrics:
     with_lessons = [item for item in results if item.returned_lesson_count > 0]
     application_rate = (
@@ -147,10 +147,10 @@ def run_decision_simulation(
     cases: list[DecisionSimulationCase],
     strategies: tuple[RetrievalStrategy, ...] = DEFAULT_STRATEGIES,
     policy: DecisionPolicy | None = None,
-) -> DecisionSimulationReport:
+) -> StructuredDecisionSimulationReport:
     effective_policy = policy or TopActionableLessonPolicy()
-    trial_results: list[DecisionTrialResult] = []
-    grouped: dict[StrategyName, list[DecisionTrialResult]] = defaultdict(list)
+    trial_results: list[AuditedDecisionTrialResult] = []
+    grouped: dict[StrategyName, list[AuditedDecisionTrialResult]] = defaultdict(list)
 
     for strategy in strategies:
         for case in cases:
@@ -162,10 +162,13 @@ def run_decision_simulation(
         _aggregate(strategy.name, grouped[strategy.name])
         for strategy in strategies
     ]
-    return DecisionSimulationReport(
+    return StructuredDecisionSimulationReport(
         simulation_version=SIMULATION_VERSION,
         evaluated_at=BENCHMARK_NOW,
-        claim=CLAIM,
+        claim=build_synthetic_claim(
+            len(cases),
+            PolicyKind.DETERMINISTIC_REFERENCE_POLICY,
+        ),
         policy_name=effective_policy.name,
         deterministic=True,
         trial_results=trial_results,
@@ -173,16 +176,21 @@ def run_decision_simulation(
     )
 
 
-def render_decision_markdown(report: DecisionSimulationReport) -> str:
+def render_decision_markdown(
+    report: StructuredDecisionSimulationReport,
+) -> str:
     lines = [
         "# Osoznanie Deterministic Decision Simulation",
         "",
         f"**Version:** `{report.simulation_version}`  ",
         f"**Policy:** `{report.policy_name}`  ",
         f"**Evaluation time:** `{report.evaluated_at.isoformat()}`  ",
+        f"**Fixture count:** `{report.claim.fixture_count}`  ",
         f"**Deterministic invariant:** `{str(report.deterministic).lower()}`",
         "",
-        f"> {report.claim}",
+        "## ⚠ Synthetic-fixture limitation",
+        "",
+        f"> {report.claim.disclaimer}",
         "",
         "## Aggregate results",
         "",
@@ -228,9 +236,9 @@ def render_decision_markdown(report: DecisionSimulationReport) -> str:
             "## Interpretation boundary",
             "",
             (
-                "The result shows how retrieval output changes one transparent, "
-                "deterministic reference policy. It does not prove that a real language "
-                "model would apply the same lesson or choose the same action."
+                "The result shows behavior of one transparent reference policy on "
+                "authored fixtures. It does not establish live-agent improvement or "
+                "real-world incident reduction."
             ),
             "",
         ]
@@ -239,7 +247,7 @@ def render_decision_markdown(report: DecisionSimulationReport) -> str:
 
 
 def write_decision_report(
-    report: DecisionSimulationReport,
+    report: StructuredDecisionSimulationReport,
     output_dir: Path,
 ) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)

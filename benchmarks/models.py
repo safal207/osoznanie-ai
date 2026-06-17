@@ -7,7 +7,14 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from osoznanie.recall import RecallQuery
+from osoznanie.recall import (
+    ProvenanceRef,
+    ReasonCode,
+    RecallQuery,
+    ScoreBreakdown,
+)
+
+from .claims import SyntheticClaim
 
 
 def _normalize(value: str) -> str:
@@ -83,12 +90,16 @@ class RetrievalBenchmarkScenario(BaseModel):
     def validate_ground_truth(self) -> RetrievalBenchmarkScenario:
         overlap = set(self.relevant_lesson_ids) & set(self.decoy_lesson_ids)
         if overlap:
-            raise ValueError(f"lesson IDs cannot be both relevant and decoys: {sorted(overlap)}")
+            raise ValueError(
+                f"lesson IDs cannot be both relevant and decoys: {sorted(overlap)}"
+            )
         return self
 
 
 class RankedLesson(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """Public retrieval result used in benchmark reports."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     lesson_id: str
     score: float = Field(ge=0.0, le=1.0)
@@ -98,6 +109,21 @@ class RankedLesson(BaseModel):
     @classmethod
     def normalize_lesson_id(cls, value: str) -> str:
         return _normalize(value)
+
+
+class RetrievedLessonSnapshot(RankedLesson):
+    """Exact typed retrieval snapshot retained for restricted audit output."""
+
+    score_breakdown: ScoreBreakdown | None = None
+    reason_codes: list[ReasonCode] = Field(default_factory=list)
+    provenance_refs: list[ProvenanceRef] = Field(default_factory=list)
+
+    def public_view(self) -> RankedLesson:
+        return RankedLesson(
+            lesson_id=self.lesson_id,
+            score=self.score,
+            rank=self.rank,
+        )
 
 
 class ScenarioMetrics(BaseModel):
@@ -134,6 +160,6 @@ class BenchmarkReport(BaseModel):
 
     benchmark_version: str
     evaluated_at: datetime
-    claim: str
+    claim: SyntheticClaim
     scenario_results: list[ScenarioMetrics]
     aggregates: list[AggregateMetrics]

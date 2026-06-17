@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from benchmarks.claims import ClaimScope, PolicyKind
 from benchmarks.evaluate import run_benchmark, write_report
 from benchmarks.fixtures import BENCHMARK_NOW, build_benchmark_cases
 from benchmarks.models import ErrorSignature, StrategyName
@@ -177,7 +178,10 @@ def test_reports_are_byte_reproducible(tmp_path: Path) -> None:
     assert first.model_dump_json() == second.model_dump_json()
     assert first_paths[0].read_bytes() == second_paths[0].read_bytes()
     assert first_paths[1].read_bytes() == second_paths[1].read_bytes()
-    assert "does not measure real LLM behavioral impact" in first_paths[0].read_text()
+    assert first.claim.scope is ClaimScope.SYNTHETIC_FIXTURES_ONLY
+    assert first.claim.fixture_count == 3
+    assert first.claim.policy_kind is PolicyKind.DETERMINISTIC_RETRIEVAL_EVALUATOR
+    assert first.claim.disclaimer
     markdown = first_paths[1].read_text()
     assert "Interpretation boundary" in markdown
     assert "Decoy selection rate" in markdown
