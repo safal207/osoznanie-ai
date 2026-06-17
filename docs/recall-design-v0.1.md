@@ -14,6 +14,17 @@ candidate lessons -> eligibility gates -> scoring -> threshold -> stable sort ->
 
 No LLM participates in filtering, scoring, authorization, reason-code generation, or explanation text.
 
+## Storage dependency
+
+Recall uses constructor injection:
+
+```python
+engine = RecallEngine(store)
+results = engine.recall(query)
+```
+
+`RecallEngine` depends on a small `RecallStore` protocol with `get()` and `list()` methods. SQLite is one implementation, not part of the retrieval contract.
+
 ## Query contract
 
 A recall query contains:
@@ -29,7 +40,7 @@ A recall query contains:
 
 ## Scope model
 
-Lessons use these keys inside `scope`:
+`Lesson.scope` is a typed object:
 
 ```json
 {
@@ -39,7 +50,7 @@ Lessons use these keys inside `scope`:
 }
 ```
 
-Unknown or malformed values contribute zero.
+`domain` is optional for backward compatibility. `task_types` and `tags` default to empty lists. Values are normalized to lowercase and deduplicated.
 
 ## Scope score
 
@@ -53,13 +64,14 @@ scope_match = 0.30 * domain_match
             + 0.20 * tag_match
 ```
 
-The scope eligibility gate is:
+The scope gates are both required:
 
 ```text
-scope_match >= 0.30
+domain_match == 1.0
+scope_match > 0.30
 ```
 
-Therefore an exact domain match can admit a candidate to ranking, while task-type match remains the strongest scope signal.
+A domain-only match therefore fails. The lesson must also match the exact task type or share at least one normalized tag.
 
 ## Eligibility gates
 
@@ -69,7 +81,8 @@ A lesson is eligible only when all conditions are true:
 2. `effective_from <= now`;
 3. `expires_at` is absent or later than `now`;
 4. every linked evidence record is accessible to the query context;
-5. `scope_match >= 0.30`.
+5. `domain_match == 1.0`;
+6. `scope_match > 0.30`.
 
 A denied candidate is not scored and does not appear in explanations.
 
@@ -96,6 +109,8 @@ Reserved policies (`relationship`, `team`, `organization`) are deny-by-default i
 When `evidence.tenant_id` is set, the query tenant must match before policy evaluation. Missing ownership metadata denies non-public evidence.
 
 ## Evidence trust
+
+The current model and generated Evidence schema are the source of truth:
 
 ```text
 untrusted = 0.0
@@ -151,8 +166,8 @@ Then `max_items` is applied.
 Each result contains:
 
 - lesson ID and statement;
-- final score;
-- complete score breakdown;
+- one authoritative final score in `RecallResult.score`;
+- component-only score breakdown (`scope_match`, `confidence`, `evidence_trust`, `recency`);
 - typed `ReasonCode` values;
 - typed provenance references;
 - deterministic explanation text.
