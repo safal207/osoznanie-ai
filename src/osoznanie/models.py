@@ -32,6 +32,15 @@ class ValidationStatus(StrEnum):
     EXPIRED = "expired"
 
 
+class AccessPolicy(StrEnum):
+    PRIVATE = "private"
+    OWNER_AND_AGENT = "owner-and-agent"
+    RELATIONSHIP = "relationship"
+    TEAM = "team"
+    ORGANIZATION = "organization"
+    PUBLIC = "public"
+
+
 class TrustLevel(StrEnum):
     UNTRUSTED = "untrusted"
     REPORTED = "reported"
@@ -78,7 +87,10 @@ class Evidence(ProtocolRecord):
     content_hash: str | None = None
     captured_at: datetime = Field(default_factory=_utc_now)
     trust_level: TrustLevel = TrustLevel.REPORTED
-    access_policy: str = "owner-and-agent"
+    access_policy: AccessPolicy = AccessPolicy.OWNER_AND_AGENT
+    owner_id: str | None = None
+    agent_id: str | None = None
+    tenant_id: str | None = None
 
 
 class Event(ProtocolRecord):
