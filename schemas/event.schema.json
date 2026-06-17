@@ -1,0 +1,20 @@
+{
+  "$id": "https://osoznanie.ai/schemas/v0.1/event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor_ids": {"items": {"type": "string"}, "minItems": 1, "title": "Actor Ids", "type": "array"},
+    "context": {"additionalProperties": true, "title": "Context", "type": "object"},
+    "created_at": {"format": "date-time", "title": "Created At", "type": "string"},
+    "evidence_ids": {"items": {"type": "string"}, "title": "Evidence Ids", "type": "array"},
+    "id": {"title": "Id", "type": "string"},
+    "sensitivity": {"default": "private", "title": "Sensitivity", "type": "string"},
+    "summary": {"minLength": 1, "title": "Summary", "type": "string"},
+    "timestamp": {"format": "date-time", "title": "Timestamp", "type": "string"},
+    "type": {"const": "event", "default": "event", "title": "Type", "type": "string"}
+  },
+  "required": ["actor_ids", "summary"],
+  "title": "Event",
+  "type": "object",
+  "x-osoznanie-protocol-version": "0.1"
+}
