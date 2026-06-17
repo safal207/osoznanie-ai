@@ -44,24 +44,8 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -q -e ".[dev]"
-      - name: Produce Ruff diagnostics
-        continue-on-error: true
-        run: |
-          ruff check . --fix > ruff-output.txt 2>&1
-          git diff > ruff-fix.patch
-      - name: Upload Ruff diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: ruff-diagnostics
-          path: |
-            ruff-output.txt
-            ruff-fix.patch
-          if-no-files-found: error
-      - name: Verify clean lint state
-        run: |
-          cat ruff-output.txt
-          test ! -s ruff-fix.patch
-          ruff check .
+      - name: Lint
+        run: ruff check .
 
   test:
     needs: [schema, lint]
