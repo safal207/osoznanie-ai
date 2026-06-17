@@ -1,6 +1,7 @@
-"""Tiny executable demonstration of Osoznanie's first experience loop."""
+"""Executable demonstration of Osoznanie's first experience and recall loop."""
 
 from osoznanie.models import (
+    AccessPolicy,
     Decision,
     Event,
     Evidence,
@@ -12,6 +13,7 @@ from osoznanie.models import (
     TrustLevel,
     ValidationStatus,
 )
+from osoznanie.recall import RecallEngine, RecallQuery, RiskLevel
 from osoznanie.storage import SQLiteExperienceStore
 
 
@@ -22,6 +24,9 @@ def main() -> None:
                 source_type="incident-report",
                 uri="demo://checkout/android-chrome",
                 trust_level=TrustLevel.VERIFIED,
+                access_policy=AccessPolicy.OWNER_AND_AGENT,
+                owner_id="human_alexey",
+                agent_id="agent_qa",
             )
         )
         event = store.save(
@@ -69,18 +74,34 @@ def main() -> None:
                     "Test the supported browser-device matrix before approving "
                     "customer-critical checkout changes."
                 ),
-                scope={"task": "checkout-release-validation"},
+                scope={
+                    "domain": "quality-assurance",
+                    "task_types": ["checkout-release-validation"],
+                    "tags": ["checkout", "chrome", "release"],
+                },
                 source_reflection_ids=[reflection.id],
                 confidence=0.88,
                 validation_status=ValidationStatus.HUMAN_APPROVED,
             )
         )
 
+        results = RecallEngine(store).recall(
+            RecallQuery(
+                agent_id="agent_qa",
+                requester_id="human_alexey",
+                domain="quality-assurance",
+                task_type="checkout-release-validation",
+                tags=["checkout", "chrome"],
+                risk_level=RiskLevel.HIGH,
+            )
+        )
+
         print("Validated lesson:")
         print(lesson.statement)
-        print("\nWhy it exists:")
-        for source in store.explain(lesson.id)["references"]:
-            print(f"- {source['type']}: {source['id']}")
+        print("\nRecalled before the next release:")
+        for result in results:
+            print(f"- score={result.score}: {result.statement}")
+            print(f"  {result.explanation}")
 
 
 if __name__ == "__main__":
