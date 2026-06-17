@@ -1,4 +1,4 @@
-"""Generate deterministic JSON Schemas for Osoznanie Protocol records."""
+"""Generate deterministic JSON Schemas for Osoznanie public contracts."""
 
 from __future__ import annotations
 
@@ -8,15 +8,24 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from .models import RECORD_MODELS, ProtocolRecord
+from pydantic import BaseModel
+
+from .models import RECORD_MODELS
+from .recall import RecallQuery, RecallResult
 
 PROTOCOL_VERSION = "0.1"
 SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 SCHEMA_BASE_URI = f"https://osoznanie.ai/schemas/v{PROTOCOL_VERSION}"
 
+PUBLIC_SCHEMA_MODELS: dict[str, type[BaseModel]] = {
+    **RECORD_MODELS,
+    "recall_query": RecallQuery,
+    "recall_result": RecallResult,
+}
+
 
 def schema_filename(record_type: str) -> str:
-    """Return the stable public filename for a protocol record type."""
+    """Return the stable public filename for a protocol contract."""
     return f"{record_type.replace('_', '-')}.schema.json"
 
 
@@ -33,7 +42,7 @@ def _contract_only(value: Any) -> Any:
     return value
 
 
-def build_schema(record_type: str, model: type[ProtocolRecord]) -> dict[str, object]:
+def build_schema(record_type: str, model: type[BaseModel]) -> dict[str, object]:
     """Build one standalone Draft 2020-12 JSON Schema document."""
     schema = _contract_only(model.model_json_schema(mode="validation"))
     schema["$schema"] = SCHEMA_DIALECT
@@ -42,7 +51,7 @@ def build_schema(record_type: str, model: type[ProtocolRecord]) -> dict[str, obj
     return schema
 
 
-def render_schema(record_type: str, model: type[ProtocolRecord]) -> str:
+def render_schema(record_type: str, model: type[BaseModel]) -> str:
     """Render a schema in canonical repository form."""
     return json.dumps(
         build_schema(record_type, model),
@@ -56,7 +65,7 @@ def schema_documents() -> dict[str, str]:
     """Return every public schema keyed by its stable filename."""
     return {
         schema_filename(record_type): render_schema(record_type, model)
-        for record_type, model in RECORD_MODELS.items()
+        for record_type, model in PUBLIC_SCHEMA_MODELS.items()
     }
 
 
