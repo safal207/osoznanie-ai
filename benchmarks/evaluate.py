@@ -1,0 +1,171 @@
+"""Metric evaluation and deterministic report rendering."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from pathlib import Path
+from statistics import fmean
+
+from .fixtures import BENCHMARK_NOW, BenchmarkCase
+from .models import (
+    AggregateMetrics,
+    BenchmarkReport,
+    ScenarioMetrics,
+    StrategyName,
+)
+from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
+
+BENCHMARK_VERSION = "retrieval-quality-v0.1"
+CLAIM = (
+    "This report measures deterministic retrieval quality for synthetic "
+    "repeated-error fixtures; it does not measure real LLM behavioral impact."
+)
+
+
+def _round(value: float) -> float:
+    return round(value, 6)
+
+
+def evaluate_case(
+    case: BenchmarkCase,
+    strategy: RetrievalStrategy,
+) -> ScenarioMetrics:
+    ranked = strategy.rank(
+        case.scenario.query,
+        case.store,
+        now=BENCHMARK_NOW,
+    )
+    relevant_ids = set(case.scenario.relevant_lesson_ids)
+    relevant_items = [item for item in ranked if item.lesson_id in relevant_ids]
+    false_positives = [item for item in ranked if item.lesson_id not in relevant_ids]
+
+    relevant_rank = min((item.rank for item in relevant_items), default=None)
+    reciprocal_rank = 0.0 if relevant_rank is None else 1.0 / relevant_rank
+    false_positive_rate = 0.0 if not ranked else len(false_positives) / len(ranked)
+
+    score_gap: float | None = None
+    if relevant_items:
+        best_relevant = max(item.score for item in relevant_items)
+        best_decoy = max((item.score for item in false_positives), default=0.0)
+        score_gap = best_relevant - best_decoy
+
+    return ScenarioMetrics(
+        scenario_id=case.scenario.scenario_id,
+        strategy=strategy.name,
+        returned_count=len(ranked),
+        relevant_rank=relevant_rank,
+        hit_at_1=relevant_rank == 1,
+        hit_at_3=relevant_rank is not None and relevant_rank <= 3,
+        reciprocal_rank=_round(reciprocal_rank),
+        false_positive_rate=_round(false_positive_rate),
+        score_gap=None if score_gap is None else _round(score_gap),
+        ranked_lessons=ranked,
+    )
+
+
+def _aggregate(
+    strategy: StrategyName,
+    results: list[ScenarioMetrics],
+) -> AggregateMetrics:
+    score_gaps = [item.score_gap for item in results if item.score_gap is not None]
+    return AggregateMetrics(
+        strategy=strategy,
+        scenario_count=len(results),
+        hit_rate_at_1=_round(fmean(float(item.hit_at_1) for item in results)),
+        hit_rate_at_3=_round(fmean(float(item.hit_at_3) for item in results)),
+        mean_reciprocal_rank=_round(fmean(item.reciprocal_rank for item in results)),
+        mean_false_positive_rate=_round(
+            fmean(item.false_positive_rate for item in results)
+        ),
+        mean_score_gap=_round(fmean(score_gaps)) if score_gaps else None,
+    )
+
+
+def run_benchmark(
+    cases: list[BenchmarkCase],
+    strategies: tuple[RetrievalStrategy, ...] = DEFAULT_STRATEGIES,
+) -> BenchmarkReport:
+    scenario_results: list[ScenarioMetrics] = []
+    grouped: dict[StrategyName, list[ScenarioMetrics]] = defaultdict(list)
+
+    for strategy in strategies:
+        for case in cases:
+            result = evaluate_case(case, strategy)
+            scenario_results.append(result)
+            grouped[strategy.name].append(result)
+
+    aggregates = [
+        _aggregate(strategy.name, grouped[strategy.name])
+        for strategy in strategies
+    ]
+    return BenchmarkReport(
+        benchmark_version=BENCHMARK_VERSION,
+        evaluated_at=BENCHMARK_NOW,
+        claim=CLAIM,
+        scenario_results=scenario_results,
+        aggregates=aggregates,
+    )
+
+
+def render_markdown(report: BenchmarkReport) -> str:
+    lines = [
+        "# Osoznanie Retrieval Quality Benchmark",
+        "",
+        f"**Version:** `{report.benchmark_version}`  ",
+        f"**Evaluation time:** `{report.evaluated_at.isoformat()}`",
+        "",
+        f"> {report.claim}",
+        "",
+        "## Aggregate results",
+        "",
+        "| Strategy | Hit@1 | Hit@3 | MRR | False-positive rate | Mean score gap |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for item in report.aggregates:
+        gap = "—" if item.mean_score_gap is None else f"{item.mean_score_gap:.6f}"
+        lines.append(
+            f"| `{item.strategy.value}` | {item.hit_rate_at_1:.6f} | "
+            f"{item.hit_rate_at_3:.6f} | {item.mean_reciprocal_rank:.6f} | "
+            f"{item.mean_false_positive_rate:.6f} | {gap} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Scenario results",
+            "",
+            "| Scenario | Strategy | Relevant rank | Returned | FPR | Score gap |",
+            "|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for item in report.scenario_results:
+        rank = "—" if item.relevant_rank is None else str(item.relevant_rank)
+        gap = "—" if item.score_gap is None else f"{item.score_gap:.6f}"
+        lines.append(
+            f"| `{item.scenario_id}` | `{item.strategy.value}` | {rank} | "
+            f"{item.returned_count} | {item.false_positive_rate:.6f} | {gap} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Interpretation boundary",
+            "",
+            (
+                "A high retrieval score means the strategy ranked the fixture's known "
+                "lesson well. It does not prove that a real language model would follow "
+                "the lesson or avoid an incident."
+            ),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_report(report: BenchmarkReport, output_dir: Path) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "retrieval-quality.json"
+    markdown_path = output_dir / "retrieval-quality.md"
+    json_path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    markdown_path.write_text(render_markdown(report), encoding="utf-8")
+    return json_path, markdown_path
