@@ -253,7 +253,8 @@ def build_benchmark_cases() -> list[BenchmarkCase]:
             tags=["regression", "incident", "release", "rollback", "checklist"],
             relevant_statement="Re-run incident-derived checks before sign-off.",
             decoy_statement=(
-                "Quality assurance production regression planning incident release rollback checklist."
+                "Quality assurance production regression planning incident release "
+                "rollback checklist."
             ),
         ),
     ]
