@@ -24,7 +24,7 @@ from .simulation_models import (
 )
 from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
-SIMULATION_VERSION = "decision-policy-v0.1"
+SIMULATION_VERSION = "decision-policy-v0.2"
 CLAIM = (
     "This report measures a deterministic policy simulation over synthetic "
     "fixtures; it does not measure real LLM behavioral impact."
@@ -103,6 +103,7 @@ def evaluate_decision_trial(
         scenario_id=case.scenario.scenario_id,
         strategy=strategy.name,
         returned_lesson_count=len(policy_input.lessons),
+        returned_lesson_ids=[lesson.lesson_id for lesson in policy_input.lessons],
         decision=decision,
         correct=decision.action_id == case.scenario.safe_action_id,
         repeated_error=(

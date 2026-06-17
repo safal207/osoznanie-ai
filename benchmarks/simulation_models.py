@@ -226,11 +226,28 @@ class DecisionTrialResult(BaseModel):
     scenario_id: str
     strategy: StrategyName
     returned_lesson_count: int = Field(ge=0)
+    returned_lesson_ids: list[str] = Field(default_factory=list)
     decision: SimulatedDecision
     correct: bool
     repeated_error: bool
     lesson_applied: bool
     abstained: bool
+
+    @field_validator("returned_lesson_ids")
+    @classmethod
+    def normalize_returned_lesson_ids(cls, values: list[str]) -> list[str]:
+        normalized = [_normalize(value) for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("returned lesson IDs must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_returned_lesson_count(self) -> DecisionTrialResult:
+        if self.returned_lesson_count != len(self.returned_lesson_ids):
+            raise ValueError(
+                "returned_lesson_count must match returned_lesson_ids length"
+            )
+        return self
 
 
 class DecisionAggregateMetrics(BaseModel):

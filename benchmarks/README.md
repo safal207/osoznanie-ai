@@ -1,6 +1,6 @@
 # Osoznanie Benchmarks
 
-The repository contains two deterministic benchmark levels for known repeated-error scenarios.
+The repository contains two deterministic benchmark levels for known repeated-error scenarios, plus an auditable decision-path trace layer.
 
 ## Level 1 — Retrieval quality
 
@@ -60,7 +60,12 @@ Outputs:
 ```text
 benchmark-results/decision/
 ├── decision-simulation.json
-└── decision-simulation.md
+├── decision-simulation.md
+└── decision-paths/
+    ├── decision-path-manifest.json
+    └── graphs/
+        ├── <scenario>--<strategy>.json
+        └── <scenario>--<strategy>.mmd
 ```
 
 ### Leakage boundary
@@ -90,8 +95,51 @@ The policy never sees:
 
 The evaluator calls the policy twice for each identical input. Different outputs fail the benchmark with `NonDeterministicPolicyError`.
 
+## Decision Path Graphs
+
+Each decision-simulation trial emits a deterministic graph:
+
+```text
+task -> retrieval -> returned lessons -> policy -> decision -> evaluated outcome
+```
+
+The JSON graph provides stable node and edge IDs for machine analysis. The Mermaid file provides a human-readable flowchart without requiring an external rendering dependency during CI.
+
+Graph nodes contain IDs, ranks, action recommendations, policy decisions, and evaluator status. They deliberately exclude:
+
+- retrieval scores;
+- lesson statements;
+- private chain-of-thought;
+- hidden error signatures;
+- access-denied memory contents.
+
+Only the final outcome node is marked `evaluator_only`. This keeps runtime-visible path data separate from hidden correctness labels.
+
+Possible graph statuses are:
+
+- `safe_decision`;
+- `repeated_error`;
+- `abstention`;
+- `other`.
+
+The graph layer is an audit trail for the deterministic benchmark path. It is not a reconstruction of private reasoning and does not claim to expose how a real LLM thinks.
+
+## Key Finding: Application Rate ≠ Decision Quality
+
+**Lesson application alone is not evidence of improved decision quality.**
+
+In the deterministic benchmark, naive keyword retrieval achieved:
+
+- **100% lesson application rate**;
+- **0% correct decisions**;
+- **100% repeated-error rate**.
+
+The policy consistently applied highly ranked decoy lessons. This demonstrates a critical failure mode in naive RAG systems: irrelevant context can be applied confidently and create a false sense of correctness.
+
+Osoznanie Recall achieved correct decisions not by increasing application rate, but by ensuring the applied lesson passed structured scope, access, validation, and temporal eligibility checks.
+
 ## Interpretation boundary
 
-Level 1 shows whether a strategy retrieves the fixture's known lesson. Level 2 shows how those retrieval outputs change one deterministic reference policy.
+Level 1 shows whether a strategy retrieves the fixture's known lesson. Level 2 shows how those retrieval outputs change one deterministic reference policy. Decision-path graphs show the auditable route through that synthetic pipeline.
 
-Neither benchmark proves that a real language model would follow a lesson, change its decision, or prevent a production incident.
+None of these benchmarks proves that a real language model would follow a lesson, change its decision, reveal its private reasoning, or prevent a production incident.
