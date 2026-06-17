@@ -23,11 +23,13 @@ def test_error_signature_uses_exact_normalized_identity() -> None:
         domain=" Quality-Assurance ",
         task_type="Checkout-Release-Validation",
         pattern_id="Desktop-Only-Validation",
+        version=1,
     )
     same = ErrorSignature(
         domain="quality-assurance",
         task_type="checkout-release-validation",
         pattern_id="desktop-only-validation",
+        version=1,
     )
     different_version = same.model_copy(update={"version": 2})
 
@@ -41,9 +43,23 @@ def test_error_signature_uses_exact_normalized_identity() -> None:
     assert not left.matches(different_version)
 
 
+def test_error_signature_requires_explicit_version() -> None:
+    with pytest.raises(ValidationError):
+        ErrorSignature(
+            domain="quality-assurance",
+            task_type="checkout-release-validation",
+            pattern_id="desktop-only-validation",
+        )
+
+
 def test_error_signature_rejects_blank_pattern() -> None:
     with pytest.raises(ValidationError):
-        ErrorSignature(domain="qa", task_type="release", pattern_id=" ")
+        ErrorSignature(
+            domain="qa",
+            task_type="release",
+            pattern_id=" ",
+            version=1,
+        )
 
 
 def test_strategies_do_not_receive_ground_truth_and_rank_deterministically() -> None:
@@ -90,24 +106,60 @@ def test_benchmark_aggregate_metrics_match_fixture_design() -> None:
     assert no_memory.hit_rate_at_1 == 0.0
     assert no_memory.hit_rate_at_3 == 0.0
     assert no_memory.mean_reciprocal_rank == 0.0
-    assert no_memory.mean_false_positive_rate == 0.0
-    assert no_memory.mean_score_gap is None
+    assert no_memory.mean_false_discovery_rate == 0.0
+    assert no_memory.mean_decoy_selection_rate == 0.0
+    assert no_memory.mean_returned_score_gap is None
 
     naive = aggregates[StrategyName.NAIVE_KEYWORD]
     assert naive.hit_rate_at_1 == 0.0
     assert naive.hit_rate_at_3 == 0.0
     assert naive.mean_reciprocal_rank == 0.2
-    assert naive.mean_false_positive_rate == 0.8
-    assert naive.mean_score_gap is not None
-    assert naive.mean_score_gap < 0.0
+    assert naive.mean_false_discovery_rate == 0.8
+    assert naive.mean_decoy_selection_rate == 1.0
+    assert naive.mean_returned_score_gap is not None
+    assert naive.mean_returned_score_gap < 0.0
 
     osoznanie = aggregates[StrategyName.OSOZNANIE_RECALL]
     assert osoznanie.hit_rate_at_1 == 1.0
     assert osoznanie.hit_rate_at_3 == 1.0
     assert osoznanie.mean_reciprocal_rank == 1.0
-    assert osoznanie.mean_false_positive_rate == 0.0
-    assert osoznanie.mean_score_gap is not None
-    assert osoznanie.mean_score_gap > 0.9
+    assert osoznanie.mean_false_discovery_rate == 0.0
+    assert osoznanie.mean_decoy_selection_rate == 0.0
+    assert osoznanie.mean_returned_score_gap is None
+
+
+def test_returned_score_gap_requires_relevant_and_decoy_results() -> None:
+    cases = build_benchmark_cases()
+    try:
+        report = run_benchmark(cases)
+    finally:
+        _close_cases(cases)
+
+    by_strategy = {
+        (item.scenario_id, item.strategy): item
+        for item in report.scenario_results
+    }
+    for case in build_benchmark_cases():
+        try:
+            scenario_id = case.scenario.scenario_id
+            assert (
+                by_strategy[(scenario_id, StrategyName.NO_MEMORY)].returned_score_gap
+                is None
+            )
+            assert (
+                by_strategy[
+                    (scenario_id, StrategyName.OSOZNANIE_RECALL)
+                ].returned_score_gap
+                is None
+            )
+            assert (
+                by_strategy[
+                    (scenario_id, StrategyName.NAIVE_KEYWORD)
+                ].returned_score_gap
+                is not None
+            )
+        finally:
+            case.store.close()
 
 
 def test_reports_are_byte_reproducible(tmp_path: Path) -> None:
@@ -126,4 +178,7 @@ def test_reports_are_byte_reproducible(tmp_path: Path) -> None:
     assert first_paths[0].read_bytes() == second_paths[0].read_bytes()
     assert first_paths[1].read_bytes() == second_paths[1].read_bytes()
     assert "does not measure real LLM behavioral impact" in first_paths[0].read_text()
-    assert "Interpretation boundary" in first_paths[1].read_text()
+    markdown = first_paths[1].read_text()
+    assert "Interpretation boundary" in markdown
+    assert "Decoy selection rate" in markdown
+    assert "Returned score gap" in markdown
