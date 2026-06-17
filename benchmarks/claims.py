@@ -18,7 +18,8 @@ class PolicyKind(StrEnum):
 
 DEFAULT_DISCLAIMER = (
     "Results describe deterministic behavior on authored synthetic fixtures. "
-    "They are not evidence about live-agent or real-world performance."
+    "They do not measure real LLM behavioral impact, live-agent improvement, "
+    "or real-world incident reduction."
 )
 
 
