@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from benchmarks.claims import ClaimScope, PolicyKind
 from benchmarks.models import StrategyName
 from benchmarks.policies import TopActionableLessonPolicy
 from benchmarks.simulate import (
@@ -58,11 +59,9 @@ def test_top_policy_uses_default_only_when_no_lessons_exist() -> None:
         available_actions=["approve", "test_more"],
         default_action_id="approve",
     )
-
     decision = TopActionableLessonPolicy().decide(
         PolicyInput(task=task, lessons=[])
     )
-
     assert decision == SimulatedDecision(
         action_id="approve",
         disposition=DecisionDisposition.ACT,
@@ -101,11 +100,9 @@ def test_top_policy_applies_first_actionable_lesson_by_rank() -> None:
             ),
         ),
     ]
-
     decision = TopActionableLessonPolicy().decide(
         PolicyInput(task=task, lessons=lessons)
     )
-
     assert decision.action_id == "test_more"
     assert decision.applied_lesson_ids == ["les_2"]
     assert decision.explanation_codes == [
@@ -127,11 +124,9 @@ def test_top_policy_abstains_when_lessons_are_not_actionable() -> None:
         rank=1,
         recommendation=ActionRecommendation(action_id="escalate"),
     )
-
     decision = TopActionableLessonPolicy().decide(
         PolicyInput(task=task, lessons=[lesson])
     )
-
     assert decision.disposition is DecisionDisposition.ABSTAIN
     assert decision.action_id is None
     assert decision.applied_lesson_ids == []
@@ -143,23 +138,19 @@ def test_simulation_metrics_match_fixture_design() -> None:
         report = run_decision_simulation(cases)
     finally:
         _close_cases(cases)
-
     aggregates = {item.strategy: item for item in report.aggregates}
-
     no_memory = aggregates[StrategyName.NO_MEMORY]
     assert no_memory.correct_decision_rate == 0.0
     assert no_memory.repeated_error_rate == 1.0
     assert no_memory.lesson_application_rate == 0.0
     assert no_memory.abstention_rate == 0.0
     assert no_memory.policy_coverage == 1.0
-
     naive = aggregates[StrategyName.NAIVE_KEYWORD]
     assert naive.correct_decision_rate == 0.0
     assert naive.repeated_error_rate == 1.0
     assert naive.lesson_application_rate == 1.0
     assert naive.abstention_rate == 0.0
     assert naive.policy_coverage == 1.0
-
     osoznanie = aggregates[StrategyName.OSOZNANIE_RECALL]
     assert osoznanie.correct_decision_rate == 1.0
     assert osoznanie.repeated_error_rate == 0.0
@@ -175,7 +166,6 @@ def test_trial_results_apply_only_runtime_visible_retrieval_output() -> None:
         report = run_decision_simulation(cases)
     finally:
         _close_cases(cases)
-
     for result in report.trial_results:
         if result.strategy is StrategyName.OSOZNANIE_RECALL:
             assert result.returned_lesson_count == 1
@@ -238,9 +228,11 @@ def test_decision_reports_are_byte_reproducible(tmp_path: Path) -> None:
     finally:
         _close_cases(first_cases)
         _close_cases(second_cases)
-
     assert first.model_dump_json() == second.model_dump_json()
     assert first_paths[0].read_bytes() == second_paths[0].read_bytes()
     assert first_paths[1].read_bytes() == second_paths[1].read_bytes()
-    assert "does not measure real LLM behavioral impact" in first_paths[0].read_text()
+    assert first.claim.scope is ClaimScope.SYNTHETIC_FIXTURES_ONLY
+    assert first.claim.fixture_count == 3
+    assert first.claim.policy_kind is PolicyKind.DETERMINISTIC_REFERENCE_POLICY
+    assert first.claim.disclaimer
     assert "Interpretation boundary" in first_paths[1].read_text()
