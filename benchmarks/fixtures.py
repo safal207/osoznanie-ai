@@ -210,6 +210,7 @@ def _build_case(
             domain=domain,
             task_type=task_type,
             pattern_id=pattern_id,
+            version=1,
         ),
         relevant_lesson_ids=[relevant_id],
         decoy_lesson_ids=decoy_ids,
@@ -238,7 +239,14 @@ def build_benchmark_cases() -> list[BenchmarkCase]:
             description="A securities transfer timeout has inconsistent system statuses.",
             task_type="cross-system-transfer-timeout-analysis",
             pattern_id="inconsistent-status-timeout",
-            tags=["integration", "timeout", "inconsistent", "status", "securities", "transfer"],
+            tags=[
+                "integration",
+                "timeout",
+                "inconsistent",
+                "status",
+                "securities",
+                "transfer",
+            ],
             relevant_statement="Compare every system checkpoint before escalation.",
             decoy_statement=(
                 "Quality assurance cross system transfer timeout analysis for integration "
