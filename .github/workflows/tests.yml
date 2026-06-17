@@ -21,7 +21,15 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -q -e ".[dev]"
-      - name: Verify generated schemas
+      - name: Check Evidence schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='evidence.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check Lesson schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='lesson.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check RecallQuery schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='recall-query.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check RecallResult schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='recall-result.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Verify all generated schemas
         run: python -m osoznanie.schema --check
 
   test:
