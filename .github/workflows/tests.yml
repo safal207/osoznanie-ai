@@ -32,8 +32,39 @@ jobs:
       - name: Verify all generated schemas
         run: python -m osoznanie.schema --check
 
-  test:
+  lint:
     needs: schema
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package
+        run: python -m pip install -q -e ".[dev]"
+      - name: Produce Ruff diagnostics
+        continue-on-error: true
+        run: |
+          ruff check . --fix > ruff-output.txt 2>&1
+          git diff > ruff-fix.patch
+      - name: Upload Ruff diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-diagnostics
+          path: |
+            ruff-output.txt
+            ruff-fix.patch
+          if-no-files-found: error
+      - name: Verify clean lint state
+        run: |
+          cat ruff-output.txt
+          test ! -s ruff-fix.patch
+          ruff check .
+
+  test:
+    needs: [schema, lint]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,14 +78,12 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -q -e ".[dev]"
-      - name: Lint
-        run: ruff check .
       - name: Test
         run: pytest
 
   benchmark:
     name: retrieval benchmark
-    needs: [schema, test]
+    needs: [schema, lint, test]
     runs-on: ubuntu-latest
 
     steps:
