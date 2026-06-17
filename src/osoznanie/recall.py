@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from statistics import fmean
 from types import MappingProxyType
-from typing import Mapping, Protocol
+from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
