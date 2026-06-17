@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from .decision_paths import build_decision_path_bundle, write_decision_path_bundle
+from .audit_paths import build_audit_path_bundle, write_audit_path_bundle
 from .simulate import run_decision_simulation, write_decision_report
 from .simulation_fixtures import build_decision_simulation_cases
 
@@ -19,7 +19,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--output",
         type=Path,
         default=Path("benchmark-results"),
-        help="Directory for JSON, Markdown, and decision-path graph artifacts.",
+        help="Directory for generated benchmark files.",
     )
     args = parser.parse_args(argv)
 
@@ -27,8 +27,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         report = run_decision_simulation(cases)
         json_path, markdown_path = write_decision_report(report, args.output)
-        bundle = build_decision_path_bundle(cases, report)
-        manifest_path, graph_paths = write_decision_path_bundle(
+        bundle = build_audit_path_bundle(cases, report)
+        manifest_path, graph_paths = write_audit_path_bundle(
             bundle,
             args.output / "decision-paths",
         )
