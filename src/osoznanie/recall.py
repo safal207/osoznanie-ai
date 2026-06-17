@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from statistics import fmean
-from typing import Protocol
+from types import MappingProxyType
+from typing import Mapping, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -23,6 +26,74 @@ from .storage import RecordNotFoundError
 
 SCOPE_GATE = 0.30
 RECENCY_HALF_LIFE_DAYS = 365.0
+SCORE_FORMULA_VERSION = "scoring-v0.1"
+ACTIVE_RANKING_POLICY_ID = "recall-ranking-v0.2"
+
+
+@dataclass(frozen=True)
+class RankingPolicySpec:
+    """Versioned deterministic ordering contract for recall results."""
+
+    id: str
+    score_formula_version: str
+    score_bucket_width: Decimal
+    score_order: str
+    tie_break_fields: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.id.strip():
+            raise ValueError("ranking policy id must not be blank")
+        if not self.score_formula_version.strip():
+            raise ValueError("score formula version must not be blank")
+        if self.score_bucket_width <= 0:
+            raise ValueError("score bucket width must be positive")
+        if self.score_order not in {"asc", "desc"}:
+            raise ValueError("score order must be 'asc' or 'desc'")
+        if not self.tie_break_fields:
+            raise ValueError("at least one tie-break field is required")
+
+
+RANKING_POLICIES: Mapping[str, RankingPolicySpec] = MappingProxyType(
+    {
+        ACTIVE_RANKING_POLICY_ID: RankingPolicySpec(
+            id=ACTIVE_RANKING_POLICY_ID,
+            score_formula_version=SCORE_FORMULA_VERSION,
+            score_bucket_width=Decimal("0.000001"),
+            score_order="desc",
+            tie_break_fields=("lesson_id",),
+        )
+    }
+)
+
+
+def get_ranking_policy(
+    policy_id: str = ACTIVE_RANKING_POLICY_ID,
+) -> RankingPolicySpec:
+    """Return a registered ranking policy or reject an unknown policy ID."""
+
+    try:
+        policy = RANKING_POLICIES[policy_id]
+    except KeyError as error:
+        raise ValueError(f"unknown ranking policy: {policy_id}") from error
+    if policy.score_formula_version != SCORE_FORMULA_VERSION:
+        raise ValueError(
+            "ranking policy score formula does not match the active score formula"
+        )
+    return policy
+
+
+def canonical_score_bucket(
+    public_score: float,
+    policy_id: str = ACTIVE_RANKING_POLICY_ID,
+) -> int:
+    """Map the public six-decimal score to a deterministic Decimal bucket."""
+
+    policy = get_ranking_policy(policy_id)
+    score = Decimal(str(public_score))
+    bucket = (score / policy.score_bucket_width).to_integral_value(
+        rounding=ROUND_HALF_UP
+    )
+    return int(bucket)
 
 
 class RecallStore(Protocol):
@@ -292,11 +363,13 @@ class RecallEngine:
         now: datetime | None = None,
     ) -> list[RecallResult]:
         """Return accessible, relevant lessons using deterministic ranking."""
+
         effective_now = now or datetime.now(UTC)
         if effective_now.tzinfo is None:
             raise ValueError("now must be timezone-aware")
 
-        candidates: list[tuple[RecallResult, Lesson]] = []
+        policy = get_ranking_policy()
+        candidates: list[tuple[RecallResult, int]] = []
         for record in self.store.list("lesson"):
             if not isinstance(record, Lesson):
                 continue
@@ -351,14 +424,9 @@ class RecallEngine:
                 provenance=provenance,
                 explanation=self._explanation(query, codes),
             )
-            candidates.append((result, lesson))
-
-        candidates.sort(
-            key=lambda item: (
-                -item[0].score,
-                -item[1].confidence,
-                -item[1].effective_from.timestamp(),
-                item[1].id,
+            candidates.append(
+                (result, canonical_score_bucket(result.score, policy.id))
             )
-        )
+
+        candidates.sort(key=lambda item: (-item[1], item[0].lesson_id))
         return [result for result, _ in candidates[: query.max_items]]
