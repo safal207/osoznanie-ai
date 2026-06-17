@@ -9,7 +9,7 @@ from typing import Protocol
 from osoznanie.models import Lesson
 from osoznanie.recall import RecallEngine, RecallQuery, RecallStore
 
-from .models import RetrievedLessonSnapshot, StrategyName
+from .models import RetrievalExecution, RetrievedLessonSnapshot, StrategyName
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -97,6 +97,29 @@ class NaiveKeywordStrategy:
 class OsoznanieRecallStrategy:
     name = StrategyName.OSOZNANIE_RECALL
 
+    def execute(
+        self,
+        query: RecallQuery,
+        store: RecallStore,
+        *,
+        now: datetime,
+    ) -> RetrievalExecution:
+        execution = RecallEngine(store).recall_with_diagnostics(query, now=now)
+        return RetrievalExecution(
+            lessons=[
+                RetrievedLessonSnapshot(
+                    lesson_id=result.lesson_id,
+                    score=result.score,
+                    rank=index,
+                    score_breakdown=result.score_breakdown,
+                    reason_codes=result.reason_codes,
+                    provenance_refs=result.provenance,
+                )
+                for index, result in enumerate(execution.results, start=1)
+            ],
+            filter_counts=execution.filter_counts,
+        )
+
     def rank(
         self,
         query: RecallQuery,
@@ -104,18 +127,21 @@ class OsoznanieRecallStrategy:
         *,
         now: datetime,
     ) -> list[RetrievedLessonSnapshot]:
-        results = RecallEngine(store).recall(query, now=now)
-        return [
-            RetrievedLessonSnapshot(
-                lesson_id=result.lesson_id,
-                score=result.score,
-                rank=index,
-                score_breakdown=result.score_breakdown,
-                reason_codes=result.reason_codes,
-                provenance_refs=result.provenance,
-            )
-            for index, result in enumerate(results, start=1)
-        ]
+        return self.execute(query, store, now=now).lessons
+
+
+def execute_strategy(
+    strategy: RetrievalStrategy,
+    query: RecallQuery,
+    store: RecallStore,
+    *,
+    now: datetime,
+) -> RetrievalExecution:
+    """Execute a strategy once and retain diagnostics when it has a filter pipeline."""
+
+    if isinstance(strategy, OsoznanieRecallStrategy):
+        return strategy.execute(query, store, now=now)
+    return RetrievalExecution(lessons=strategy.rank(query, store, now=now))
 
 
 DEFAULT_STRATEGIES: tuple[RetrievalStrategy, ...] = (
