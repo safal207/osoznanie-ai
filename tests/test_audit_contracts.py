@@ -3,8 +3,6 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from osoznanie.recall import ProvenanceRef
-
 from benchmarks.audit_policy import RankingPolicyRef, ranking_policy_ref_for
 from benchmarks.claims import ClaimScope, PolicyKind
 from benchmarks.models import StrategyName
@@ -16,6 +14,7 @@ from benchmarks.path_contracts import (
 )
 from benchmarks.simulate import run_decision_simulation
 from benchmarks.simulation_fixtures import build_decision_simulation_cases
+from osoznanie.recall import ProvenanceRef
 
 
 def _close_cases(cases) -> None:
