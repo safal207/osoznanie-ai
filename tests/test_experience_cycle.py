@@ -5,8 +5,8 @@ import pytest
 from osoznanie.models import (
     Commitment,
     Decision,
-    Evidence,
     Event,
+    Evidence,
     Hypothesis,
     IdentitySnapshot,
     Lesson,
