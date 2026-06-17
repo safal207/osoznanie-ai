@@ -69,7 +69,10 @@ class RetrievalBenchmarkScenario(BaseModel):
     @field_validator("description")
     @classmethod
     def validate_description(cls, value: str) -> str:
-        return value.strip() or ValueError("description must not be blank")
+        description = value.strip()
+        if not description:
+            raise ValueError("description must not be blank")
+        return description
 
     @field_validator("relevant_lesson_ids", "decoy_lesson_ids")
     @classmethod
