@@ -2,8 +2,8 @@
 
 from osoznanie.models import (
     Decision,
-    Evidence,
     Event,
+    Evidence,
     Hypothesis,
     Lesson,
     Outcome,
