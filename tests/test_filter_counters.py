@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from osoznanie.recall import RecallEngine
+from osoznanie.recall import RecallEngine, RecallFilterCounts
 
 from benchmarks.audit_paths import build_audit_path_bundle
 from benchmarks.filter_contracts import (
@@ -136,13 +136,7 @@ def test_unstructured_strategies_use_null_filter_summary() -> None:
 
 
 def test_redacted_does_not_claim_that_hidden_candidates_exist() -> None:
-    summary = FilterSummary.public(
-        RecallEngine(build_benchmark_cases()[0].store)
-        .recall_with_diagnostics(
-            build_benchmark_cases()[0].scenario.query,
-            now=BENCHMARK_NOW,
-        )
-        .filter_counts
-    )
+    summary = FilterSummary.public(RecallFilterCounts(access_denied=0))
+
     assert summary.access_denied.visibility is CountVisibility.REDACTED
     assert summary.access_denied.value is None
