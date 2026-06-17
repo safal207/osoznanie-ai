@@ -13,8 +13,10 @@ Each schema is a standalone JSON Schema Draft 2020-12 document:
 - `commitment.schema.json`
 - `trait.schema.json`
 - `identity-snapshot.schema.json`
+- `recall-query.schema.json`
+- `recall-result.schema.json`
 
-The schemas are generated from the Pydantic domain models. Do not edit them manually.
+The schemas are generated from the Pydantic protocol and recall models. Do not edit them manually.
 
 ## Generate
 
@@ -40,3 +42,5 @@ Every schema has:
 - `additionalProperties: false` for strict records;
 - protocol version metadata in `x-osoznanie-protocol-version`;
 - only validation-relevant fields, without generator-specific display titles.
+
+`recall-result.schema.json` constrains `ReasonCode`, provenance object types, score bounds, and the component-only score breakdown.

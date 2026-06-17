@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def _new_id(prefix: str) -> str:
@@ -22,6 +22,10 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _normalize_values(values: list[str]) -> list[str]:
+    return sorted({value.strip().lower() for value in values if value.strip()})
+
+
 class ValidationStatus(StrEnum):
     PROPOSED = "proposed"
     MACHINE_REVIEWED = "machine_reviewed"
@@ -30,6 +34,15 @@ class ValidationStatus(StrEnum):
     ACTIVE = "active"
     DEPRECATED = "deprecated"
     EXPIRED = "expired"
+
+
+class AccessPolicy(StrEnum):
+    PRIVATE = "private"
+    OWNER_AND_AGENT = "owner-and-agent"
+    RELATIONSHIP = "relationship"
+    TEAM = "team"
+    ORGANIZATION = "organization"
+    PUBLIC = "public"
 
 
 class TrustLevel(StrEnum):
@@ -78,7 +91,10 @@ class Evidence(ProtocolRecord):
     content_hash: str | None = None
     captured_at: datetime = Field(default_factory=_utc_now)
     trust_level: TrustLevel = TrustLevel.REPORTED
-    access_policy: str = "owner-and-agent"
+    access_policy: AccessPolicy = AccessPolicy.OWNER_AND_AGENT
+    owner_id: str | None = None
+    agent_id: str | None = None
+    tenant_id: str | None = None
 
 
 class Event(ProtocolRecord):
@@ -149,11 +165,34 @@ class Reflection(ProtocolRecord):
         return tuple((*self.source_ids, *hypothesis_evidence))
 
 
+class LessonScope(BaseModel):
+    """Deterministic retrieval scope for a lesson."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str | None = None
+    task_types: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+    @field_validator("domain")
+    @classmethod
+    def normalize_domain(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        return normalized or None
+
+    @field_validator("task_types", "tags")
+    @classmethod
+    def normalize_lists(cls, values: list[str]) -> list[str]:
+        return _normalize_values(values)
+
+
 class Lesson(ProtocolRecord):
     id: str = Field(default_factory=lambda: _new_id("les"))
     type: Literal["lesson"] = "lesson"
     statement: str = Field(min_length=1)
-    scope: dict[str, Any] = Field(default_factory=dict)
+    scope: LessonScope = Field(default_factory=LessonScope)
     source_reflection_ids: list[str] = Field(min_length=1)
     confidence: float = Field(ge=0.0, le=1.0)
     validation_status: ValidationStatus = ValidationStatus.PROPOSED

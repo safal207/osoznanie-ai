@@ -9,7 +9,31 @@ permissions:
   contents: read
 
 jobs:
+  schema:
+    name: schema contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package
+        run: python -m pip install -q -e ".[dev]"
+      - name: Check Evidence schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='evidence.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check Lesson schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='lesson.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check RecallQuery schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='recall-query.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Check RecallResult schema
+        run: python -c "from pathlib import Path; from osoznanie.schema import schema_documents; f='recall-result.schema.json'; assert Path('schemas', f).read_text() == schema_documents()[f]"
+      - name: Verify all generated schemas
+        run: python -m osoznanie.schema --check
+
   test:
+    needs: schema
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,9 +46,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install package
-        run: python -m pip install -e ".[dev]"
-      - name: Verify generated schemas
-        run: python -m osoznanie.schema --check
+        run: python -m pip install -q -e ".[dev]"
       - name: Lint
         run: ruff check .
       - name: Test

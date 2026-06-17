@@ -83,7 +83,11 @@ def test_complete_qa_experience_cycle(tmp_path) -> None:
                 "Before approving customer-critical checkout changes, test the supported "
                 "browser-device matrix rather than desktop Chrome alone."
             ),
-            scope={"domain": "quality-assurance", "task": "checkout-release-validation"},
+            scope={
+                "domain": "quality-assurance",
+                "task_types": ["checkout-release-validation"],
+                "tags": ["checkout", "chrome", "release"],
+            },
             source_reflection_ids=[reflection.id],
             confidence=0.88,
             validation_status=ValidationStatus.HUMAN_APPROVED,
