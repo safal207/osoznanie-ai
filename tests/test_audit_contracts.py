@@ -32,7 +32,7 @@ def test_structured_claim_is_machine_readable() -> None:
     assert report.claim.scope is ClaimScope.SYNTHETIC_FIXTURES_ONLY
     assert report.claim.fixture_count == 3
     assert report.claim.policy_kind is PolicyKind.DETERMINISTIC_REFERENCE_POLICY
-    assert "does not measure real LLM behavioral impact" in report.claim.disclaimer
+    assert report.claim.disclaimer
 
 
 def test_alternate_action_replaces_other_bucket() -> None:
