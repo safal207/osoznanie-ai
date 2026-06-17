@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
 from .claims import SyntheticClaim
 from .models import RetrievedLessonSnapshot
-from .simulation_models import (
-    DecisionAggregateMetrics,
-    DecisionTrialResult,
-)
+from .simulation_models import DecisionSimulationReport, DecisionTrialResult
 
 
 class AuditedDecisionTrialResult(DecisionTrialResult):
@@ -32,13 +27,6 @@ class AuditedDecisionTrialResult(DecisionTrialResult):
         return self
 
 
-class StructuredDecisionSimulationReport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    simulation_version: str
-    evaluated_at: datetime
+class StructuredDecisionSimulationReport(DecisionSimulationReport):
     claim: SyntheticClaim
-    policy_name: str
-    deterministic: bool
     trial_results: list[AuditedDecisionTrialResult]
-    aggregates: list[DecisionAggregateMetrics]
