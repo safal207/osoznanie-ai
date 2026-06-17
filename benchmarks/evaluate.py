@@ -14,7 +14,7 @@ from .models import (
     ScenarioMetrics,
     StrategyName,
 )
-from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
+from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy, execute_strategy
 
 BENCHMARK_VERSION = "retrieval-quality-v0.3"
 
@@ -27,11 +27,13 @@ def evaluate_case(
     case: BenchmarkCase,
     strategy: RetrievalStrategy,
 ) -> ScenarioMetrics:
-    snapshots = strategy.rank(
+    execution = execute_strategy(
+        strategy,
         case.scenario.query,
         case.store,
         now=BENCHMARK_NOW,
     )
+    snapshots = execution.lessons
     relevant_ids = set(case.scenario.relevant_lesson_ids)
     decoy_ids = set(case.scenario.decoy_lesson_ids)
 

@@ -188,6 +188,29 @@ class RecallResult(BaseModel):
     explanation: str
 
 
+class RecallFilterCounts(BaseModel):
+    """Aggregate first-exclusion counters from one recall execution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    validation_rejected: int = Field(default=0, ge=0)
+    not_yet_effective: int = Field(default=0, ge=0)
+    expired: int = Field(default=0, ge=0)
+    domain_mismatch: int = Field(default=0, ge=0)
+    insufficient_scope: int = Field(default=0, ge=0)
+    access_denied: int = Field(default=0, ge=0)
+    below_risk_threshold: int = Field(default=0, ge=0)
+
+
+class RecallExecution(BaseModel):
+    """Results and aggregate diagnostics produced by the same recall pass."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    results: list[RecallResult]
+    filter_counts: RecallFilterCounts
+
+
 class _ScopeScore(BaseModel):
     domain_match: float
     task_match: float
@@ -365,10 +388,29 @@ class RecallEngine:
     ) -> list[RecallResult]:
         """Return accessible, relevant lessons using deterministic ranking."""
 
+        return self.recall_with_diagnostics(query, now=now).results
+
+    def recall_with_diagnostics(
+        self,
+        query: RecallQuery,
+        *,
+        now: datetime | None = None,
+    ) -> RecallExecution:
+        """Return results and first-exclusion counters from one deterministic pass."""
+
         effective_now = now or datetime.now(UTC)
         if effective_now.tzinfo is None:
             raise ValueError("now must be timezone-aware")
 
+        counts = {
+            "validation_rejected": 0,
+            "not_yet_effective": 0,
+            "expired": 0,
+            "domain_mismatch": 0,
+            "insufficient_scope": 0,
+            "access_denied": 0,
+            "below_risk_threshold": 0,
+        }
         policy = get_ranking_policy()
         candidates: list[tuple[RecallResult, int]] = []
         for record in self.store.list("lesson"):
@@ -380,18 +422,26 @@ class RecallEngine:
                 ValidationStatus.HUMAN_APPROVED,
                 ValidationStatus.ACTIVE,
             }:
+                counts["validation_rejected"] += 1
                 continue
             if lesson.effective_from > effective_now:
+                counts["not_yet_effective"] += 1
                 continue
             if lesson.expires_at is not None and lesson.expires_at <= effective_now:
+                counts["expired"] += 1
                 continue
 
             scope = _scope_score(query, lesson)
-            if scope.domain_match != 1.0 or scope.final <= SCOPE_GATE:
+            if scope.domain_match != 1.0:
+                counts["domain_mismatch"] += 1
+                continue
+            if scope.final <= SCOPE_GATE:
+                counts["insufficient_scope"] += 1
                 continue
 
             evidence, provenance = self._lesson_context(lesson)
             if any(not _access_allowed(query, item) for item in evidence):
+                counts["access_denied"] += 1
                 continue
 
             evidence_trust = (
@@ -407,6 +457,7 @@ class RecallEngine:
                 + 0.10 * recency
             )
             if final_score < MIN_SCORE[query.risk_level]:
+                counts["below_risk_threshold"] += 1
                 continue
 
             codes = self._reason_codes(query, lesson, scope, evidence, recency)
@@ -430,4 +481,8 @@ class RecallEngine:
             )
 
         candidates.sort(key=lambda item: (-item[1], item[0].lesson_id))
-        return [result for result, _ in candidates[: query.max_items]]
+        results = [result for result, _ in candidates[: query.max_items]]
+        return RecallExecution(
+            results=results,
+            filter_counts=RecallFilterCounts(**counts),
+        )

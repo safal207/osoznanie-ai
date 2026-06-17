@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from osoznanie.recall import (
     ProvenanceRef,
     ReasonCode,
+    RecallFilterCounts,
     RecallQuery,
     ScoreBreakdown,
 )
@@ -124,6 +125,25 @@ class RetrievedLessonSnapshot(RankedLesson):
             score=self.score,
             rank=self.rank,
         )
+
+
+class RetrievalExecution(BaseModel):
+    """Typed benchmark retrieval output plus optional structured diagnostics."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    lessons: list[RetrievedLessonSnapshot] = Field(default_factory=list)
+    filter_counts: RecallFilterCounts | None = None
+
+    @model_validator(mode="after")
+    def validate_lesson_order(self) -> RetrievalExecution:
+        ranks = [item.rank for item in self.lessons]
+        if ranks != list(range(1, len(ranks) + 1)):
+            raise ValueError("retrieval ranks must be contiguous from one")
+        lesson_ids = [item.lesson_id for item in self.lessons]
+        if len(lesson_ids) != len(set(lesson_ids)):
+            raise ValueError("retrieval lesson IDs must be unique")
+        return self
 
 
 class ScenarioMetrics(BaseModel):

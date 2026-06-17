@@ -1,4 +1,4 @@
-"""Public and restricted v0.2 artifacts built from completed decision trials."""
+"""Public and restricted artifacts built from completed decision trials."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from .decision_paths import (
     DecisionPathNodeKind,
     build_decision_path_graph,
 )
+from .filter_contracts import FilterSummary
 from .models import StrategyName
 from .path_contracts import (
     DecisionPathReasonCode,
@@ -29,8 +30,8 @@ from .report_contracts import (
 from .simulation_fixtures import DecisionSimulationCase
 from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
-PUBLIC_PATH_VERSION = "decision-path-public-v0.2"
-MANIFEST_VERSION = "decision-path-manifest-v0.2"
+PUBLIC_PATH_VERSION = "decision-path-public-v0.3"
+MANIFEST_VERSION = "decision-path-manifest-v0.3"
 
 
 class PublicDecisionPathArtifact(BaseModel):
@@ -43,12 +44,20 @@ class PublicDecisionPathArtifact(BaseModel):
     policy_name: str
     status: DecisionPathStatus
     reason_code: DecisionPathReasonCode
+    filter_summary: FilterSummary | None = None
     nodes: list[DecisionPathNode] = Field(min_length=1)
     edges: list[DecisionPathEdge]
 
     @model_validator(mode="after")
     def validate_classification(self) -> PublicDecisionPathArtifact:
         validate_status_reason(self.status, self.reason_code)
+        if self.strategy is StrategyName.OSOZNANIE_RECALL:
+            if self.filter_summary is None:
+                raise ValueError("Osoznanie public artifact requires filter summary")
+        elif self.filter_summary is not None:
+            raise ValueError(
+                "strategies without a structured filter pipeline require null summary"
+            )
         return self
 
 
@@ -120,6 +129,11 @@ def _public_graph(
         policy_name=legacy.policy_name,
         status=status,
         reason_code=reason_code,
+        filter_summary=(
+            FilterSummary.public(result.filter_counts)
+            if result.filter_counts is not None
+            else None
+        ),
         nodes=nodes,
         edges=legacy.edges,
     )
@@ -137,6 +151,11 @@ def _restricted_audit(
         policy_name=graph.policy_name,
         claim=report.claim,
         ranking_policy=ranking_policy_ref_for(graph.strategy),
+        filter_summary=(
+            FilterSummary.restricted(result.filter_counts)
+            if result.filter_counts is not None
+            else None
+        ),
         returned_lessons=[
             AuditRetrievedLesson.from_snapshot(item)
             for item in result.returned_lessons
