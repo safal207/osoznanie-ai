@@ -6,6 +6,7 @@ import argparse
 import json
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from .models import RECORD_MODELS, ProtocolRecord
 
@@ -19,9 +20,22 @@ def schema_filename(record_type: str) -> str:
     return f"{record_type.replace('_', '-')}.schema.json"
 
 
+def _contract_only(value: Any) -> Any:
+    """Remove display labels that do not affect JSON validation."""
+    if isinstance(value, dict):
+        return {
+            key: _contract_only(item)
+            for key, item in value.items()
+            if key != "title"
+        }
+    if isinstance(value, list):
+        return [_contract_only(item) for item in value]
+    return value
+
+
 def build_schema(record_type: str, model: type[ProtocolRecord]) -> dict[str, object]:
     """Build one standalone Draft 2020-12 JSON Schema document."""
-    schema = model.model_json_schema(mode="validation")
+    schema = _contract_only(model.model_json_schema(mode="validation"))
     schema["$schema"] = SCHEMA_DIALECT
     schema["$id"] = f"{SCHEMA_BASE_URI}/{schema_filename(record_type)}"
     schema["x-osoznanie-protocol-version"] = PROTOCOL_VERSION
