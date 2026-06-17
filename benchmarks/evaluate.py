@@ -77,11 +77,7 @@ def _aggregate(
         mean_false_positive_rate=_round(
             fmean(item.false_positive_rate for item in results)
         ),
-        mean_score_gap=(
-            _round(fmean(score_gaps))
-            if score_gaps
-            else None
-        ),
+        mean_score_gap=_round(fmean(score_gaps)) if score_gaps else None,
     )
 
 
@@ -155,8 +151,11 @@ def render_markdown(report: BenchmarkReport) -> str:
             "",
             "## Interpretation boundary",
             "",
-            "A high retrieval score means the strategy ranked the fixture's known lesson well. "
-            "It does not prove that a real language model would follow the lesson or avoid an incident.",
+            (
+                "A high retrieval score means the strategy ranked the fixture's known "
+                "lesson well. It does not prove that a real language model would follow "
+                "the lesson or avoid an incident."
+            ),
             "",
         ]
     )
