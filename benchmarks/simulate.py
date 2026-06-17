@@ -25,9 +25,9 @@ from .simulation_models import (
     PolicyLesson,
     SimulatedDecision,
 )
-from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
+from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy, execute_strategy
 
-SIMULATION_VERSION = "decision-policy-v0.3"
+SIMULATION_VERSION = "decision-policy-v0.4"
 
 
 class SimulationInputError(RuntimeError):
@@ -87,11 +87,13 @@ def evaluate_decision_trial(
     strategy: RetrievalStrategy,
     policy: DecisionPolicy,
 ) -> AuditedDecisionTrialResult:
-    ranked = strategy.rank(
+    execution = execute_strategy(
+        strategy,
         case.retrieval_case.scenario.query,
         case.retrieval_case.store,
         now=BENCHMARK_NOW,
     )
+    ranked = execution.lessons
     policy_input = PolicyInput(
         task=case.scenario.task,
         lessons=_policy_lessons(case, ranked),
@@ -104,6 +106,7 @@ def evaluate_decision_trial(
         returned_lesson_count=len(ranked),
         returned_lesson_ids=[item.lesson_id for item in ranked],
         returned_lessons=ranked,
+        filter_counts=execution.filter_counts,
         decision=decision,
         correct=decision.action_id == case.scenario.safe_action_id,
         repeated_error=(
