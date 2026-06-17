@@ -33,7 +33,10 @@ def test_bundle_has_public_and_restricted_artifact_per_trial() -> None:
     assert len(bundle.audits) == 9
     assert bundle.manifest.graph_count == 9
     assert len(bundle.manifest.entries) == 9
-    assert all(entry.audit_json_file.endswith(".audit.json") for entry in bundle.manifest.entries)
+    assert all(
+        entry.audit_json_file.endswith(".audit.json")
+        for entry in bundle.manifest.entries
+    )
 
 
 def test_public_graph_has_closed_statuses_and_reason_codes() -> None:
@@ -67,7 +70,7 @@ def test_public_payload_excludes_restricted_fields() -> None:
             assert f'"{key}"' not in payload
 
 
-def test_restricted_payload_contains_typed_recall_metadata_only_when_available() -> None:
+def test_restricted_payload_contains_typed_recall_metadata() -> None:
     bundle = _bundle()
 
     for audit in bundle.audits:
@@ -77,9 +80,18 @@ def test_restricted_payload_contains_typed_recall_metadata_only_when_available()
         elif audit.strategy is StrategyName.NAIVE_KEYWORD:
             assert audit.ranking_policy is not None
             assert audit.returned_lessons
-            assert all(item.score_breakdown is None for item in audit.returned_lessons)
-            assert all(item.reason_codes == [] for item in audit.returned_lessons)
-            assert all(item.provenance_refs == [] for item in audit.returned_lessons)
+            assert all(
+                item.score_breakdown is None
+                for item in audit.returned_lessons
+            )
+            assert all(
+                item.reason_codes == []
+                for item in audit.returned_lessons
+            )
+            assert all(
+                item.provenance_refs == []
+                for item in audit.returned_lessons
+            )
         else:
             assert audit.ranking_policy is not None
             assert audit.ranking_policy.id == "recall-ranking-v0.2"
@@ -89,16 +101,25 @@ def test_restricted_payload_contains_typed_recall_metadata_only_when_available()
             assert lesson.reason_codes
             assert lesson.provenance_refs
             payload = json.loads(audit.model_dump_json())
-            assert isinstance(payload["returned_lessons"][0]["canonical_score"], str)
+            canonical_score = payload["returned_lessons"][0]["canonical_score"]
+            assert isinstance(canonical_score, str)
             assert payload["ranking_policy"]["score_bucket_width"] == "0.000001"
 
 
-def test_artifacts_are_byte_reproducible_and_use_split_names(tmp_path: Path) -> None:
+def test_artifacts_are_byte_reproducible_and_use_split_names(
+    tmp_path: Path,
+) -> None:
     first = _bundle()
     second = _bundle()
 
-    first_manifest, first_paths = write_audit_path_bundle(first, tmp_path / "first")
-    second_manifest, second_paths = write_audit_path_bundle(second, tmp_path / "second")
+    first_manifest, first_paths = write_audit_path_bundle(
+        first,
+        tmp_path / "first",
+    )
+    second_manifest, second_paths = write_audit_path_bundle(
+        second,
+        tmp_path / "second",
+    )
 
     assert first_manifest.read_bytes() == second_manifest.read_bytes()
     first_bytes = {
