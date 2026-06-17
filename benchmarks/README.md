@@ -1,6 +1,11 @@
 # Osoznanie Benchmarks
 
-The repository contains two deterministic benchmark levels for known repeated-error scenarios, plus an auditable decision-path trace layer.
+The repository contains two deterministic benchmark levels for known repeated-error scenarios, plus a split public/restricted decision-path layer.
+
+> [!WARNING]
+> Level 1 and Level 2 use authored synthetic fixtures whose expected outcomes are known by design. The reports validate deterministic pipeline behavior. They do not measure real LLM behavioral impact, live-agent improvement, or real-world incident reduction.
+
+Every JSON report carries the same limitation as a structured `SyntheticClaim` object with `scope`, `fixture_count`, `policy_kind`, and `disclaimer` fields.
 
 ## Level 1 — Retrieval quality
 
@@ -32,7 +37,7 @@ Each scenario defines an exact benchmark-only `ErrorSignature`:
 (domain, task_type, pattern_id, version)
 ```
 
-All four fields are required. Strategies receive only query, storage, and fixed evaluation time; they never receive relevant IDs or error signatures.
+Strategies receive only query, storage, and fixed evaluation time. They never receive relevant IDs or error signatures.
 
 ### Retrieval metrics
 
@@ -64,8 +69,9 @@ benchmark-results/decision/
 └── decision-paths/
     ├── decision-path-manifest.json
     └── graphs/
-        ├── <scenario>--<strategy>.json
-        └── <scenario>--<strategy>.mmd
+        ├── <scenario>--<strategy>.public.json
+        ├── <scenario>--<strategy>.public.mmd
+        └── <scenario>--<strategy>.audit.json
 ```
 
 ### Leakage boundary
@@ -79,7 +85,8 @@ The policy sees only:
 The policy never sees:
 
 - retrieval strategy name;
-- retrieval score;
+- retrieval score or score breakdown;
+- provenance;
 - `ErrorSignature`;
 - relevant lesson IDs;
 - safe or repeated-error labels;
@@ -95,34 +102,53 @@ The policy never sees:
 
 The evaluator calls the policy twice for each identical input. Different outputs fail the benchmark with `NonDeterministicPolicyError`.
 
-## Decision Path Graphs
+## Decision-path artifacts
 
-Each decision-simulation trial emits a deterministic graph:
+Each completed trial is retained once as an exact typed retrieval snapshot. Artifacts are generated from that completed trial; retrieval is not replayed during trace generation.
 
 ```text
 task -> retrieval -> returned lessons -> policy -> decision -> evaluated outcome
 ```
 
-The JSON graph provides stable node and edge IDs for machine analysis. The Mermaid file provides a human-readable flowchart without requiring an external rendering dependency during CI.
+### Public files
 
-Graph nodes contain IDs, ranks, action recommendations, policy decisions, and evaluator status. They deliberately exclude:
+`.public.json` and `.public.mmd` contain stable node/edge IDs, lesson IDs and ranks, recommendations, the selected action, status, and reason code. They exclude:
 
-- retrieval scores;
+- retrieval scores and score breakdowns;
+- typed provenance;
 - lesson statements;
 - private chain-of-thought;
 - hidden error signatures;
-- access-denied memory contents.
+- access-denied memory contents or identifiers.
 
-Only the final outcome node is marked `evaluator_only`. This keeps runtime-visible path data separate from hidden correctness labels.
+### Restricted file
 
-Possible graph statuses are:
+`.audit.json` adds forensic data only for lessons actually returned to the policy:
+
+- `canonical_score`;
+- typed `ScoreBreakdown`;
+- typed `ReasonCode` values;
+- `provenance_refs: list[ProvenanceRef]`;
+- one validated `RankingPolicyRef` at artifact level.
+
+`Decimal` fields are serialized as JSON strings in ordinary decimal notation. Consumers must parse them with a decimal-aware parser rather than binary floating-point arithmetic.
+
+Access-denied candidates are absent from both public and restricted lesson lists. Privacy-aware aggregate filter counters are defined in a separate follow-up contract.
+
+### Closed path classification
+
+Possible statuses are:
 
 - `safe_decision`;
 - `repeated_error`;
 - `abstention`;
-- `other`.
+- `alternate_action`.
 
-The graph layer is an audit trail for the deterministic benchmark path. It is not a reconstruction of private reasoning and does not claim to expose how a real LLM thinks.
+Every status requires its matching structured reason code. There is no `other` bucket.
+
+### Manifest boundary
+
+`decision-path-manifest.json` is a generated index, not a second source of trial content. It contains artifact paths, strategy, status, and reason code. Full trial data remains in the public and restricted per-trial files.
 
 ## Key Finding: Application Rate ≠ Decision Quality
 
@@ -134,12 +160,10 @@ In the deterministic benchmark, naive keyword retrieval achieved:
 - **0% correct decisions**;
 - **100% repeated-error rate**.
 
-The policy consistently applied highly ranked decoy lessons. This demonstrates a critical failure mode in naive RAG systems: irrelevant context can be applied confidently and create a false sense of correctness.
+The policy consistently applied highly ranked decoy lessons. This demonstrates a failure mode in naive RAG systems: irrelevant context can be applied confidently and create a false sense of correctness.
 
-Osoznanie Recall achieved correct decisions not by increasing application rate, but by ensuring the applied lesson passed structured scope, access, validation, and temporal eligibility checks.
+Osoznanie Recall achieved correct decisions on these fixtures not by increasing application rate, but by ensuring the applied lesson passed structured scope, access, validation, and temporal eligibility checks.
 
 ## Interpretation boundary
 
-Level 1 shows whether a strategy retrieves the fixture's known lesson. Level 2 shows how those retrieval outputs change one deterministic reference policy. Decision-path graphs show the auditable route through that synthetic pipeline.
-
-None of these benchmarks proves that a real language model would follow a lesson, change its decision, reveal its private reasoning, or prevent a production incident.
+Level 1 measures retrieval against fixture-defined relevance. Level 2 measures one deterministic reference policy against fixture-defined actions. Decision-path artifacts expose the auditable route through that synthetic pipeline. None of these outputs establishes production-agent improvement.
