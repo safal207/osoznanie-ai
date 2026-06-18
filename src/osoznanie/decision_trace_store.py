@@ -6,10 +6,10 @@ import sqlite3
 
 from .decision_trace import DecisionTrace
 from .storage import (
+    STORAGE_RECORD_MODELS,
     DuplicateRecordError,
     MissingReferenceError,
     SQLiteExperienceStore,
-    STORAGE_RECORD_MODELS,
     StorageError,
 )
 
