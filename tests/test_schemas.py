@@ -3,6 +3,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from osoznanie.memory import MemoryObject, MemoryType
 from osoznanie.models import (
     Commitment,
     Decision,
@@ -79,6 +80,14 @@ def sample_records():
             agent_id="agent_qa",
             version=1,
             change_summary="Created the first accountable identity snapshot.",
+        ),
+        "memory.schema.json": MemoryObject(
+            memory_key="trip.singapore.status",
+            memory_type=MemoryType.FACT,
+            content={"state": "planned"},
+            source_event_ids=["evt_1"],
+            confidence=0.9,
+            importance=0.7,
         ),
         "recall-query.schema.json": RecallQuery(
             agent_id="agent_qa",
