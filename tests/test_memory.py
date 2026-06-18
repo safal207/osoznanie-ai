@@ -9,6 +9,8 @@ from osoznanie.memory import (
     MemoryType,
     resolve_active_memory,
 )
+from osoznanie.models import Event
+from osoznanie.storage import MissingReferenceError, SQLiteExperienceStore
 
 NOW = datetime(2026, 6, 18, 12, 0, tzinfo=UTC)
 
@@ -90,3 +92,30 @@ def test_confidence_and_importance_are_bounded() -> None:
 def test_conflict_cannot_also_be_supersession() -> None:
     with pytest.raises(ValidationError, match="both supersede and contradict"):
         fact(version=2, supersedes=["mem_old"], contradicts=["mem_old"])
+
+
+def test_store_persists_memory_and_explains_event_provenance() -> None:
+    store = SQLiteExperienceStore()
+    event = store.save(
+        Event(
+            id="evt_plan",
+            actor_ids=["human_alexey"],
+            summary="The user is planning a trip to Singapore.",
+        )
+    )
+    memory = fact(source_event_ids=[event.id])
+
+    assert store.save(memory) == memory
+    assert store.get(memory.id) == memory
+    assert store.list("memory") == [memory]
+
+    explanation = store.explain(memory.id)
+    assert explanation["references"][0]["id"] == event.id
+
+
+def test_store_rejects_missing_memory_provenance() -> None:
+    store = SQLiteExperienceStore()
+    memory = fact(source_event_ids=["evt_missing"])
+
+    with pytest.raises(MissingReferenceError, match="evt_missing"):
+        store.save(memory)
