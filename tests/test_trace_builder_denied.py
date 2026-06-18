@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
+
 from osoznanie.access_control import (
     AccessDecisionTrace,
     AccessReasonCode,
