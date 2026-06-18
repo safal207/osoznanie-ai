@@ -1,5 +1,15 @@
 """Public package interface for Osoznanie AI."""
 
+from .application import (
+    CriterionEvaluation,
+    CriterionOperator,
+    CriterionResult,
+    EvaluationReasonCode,
+    LessonApplication,
+    ObservationValue,
+    OutcomeObservation,
+    SuccessCriterion,
+)
 from .consolidation import (
     AmbiguousMemoryHistoryError,
     ConsolidationEngine,
@@ -46,12 +56,15 @@ from .recall import (
     ScoreBreakdown,
 )
 from .storage import (
+    ContractReferenceError,
     DuplicateRecordError,
+    IdempotencyConflictError,
     MissingReferenceError,
     RecordNotFoundError,
     ReferencedRecordError,
     SQLiteExperienceStore,
     StorageError,
+    TemporalContractError,
 )
 
 __all__ = [
@@ -62,13 +75,20 @@ __all__ = [
     "ConsolidationEngine",
     "ConsolidationError",
     "ConsolidationResult",
+    "ContractReferenceError",
+    "CriterionEvaluation",
+    "CriterionOperator",
+    "CriterionResult",
     "Decision",
     "DuplicateRecordError",
+    "EvaluationReasonCode",
     "Evidence",
     "Event",
     "Hypothesis",
+    "IdempotencyConflictError",
     "IdentitySnapshot",
     "Lesson",
+    "LessonApplication",
     "LessonScope",
     "MemoryMutation",
     "MemoryMutationKind",
@@ -78,7 +98,9 @@ __all__ = [
     "MemoryTypeChangeError",
     "MissingMemoryHistoryError",
     "MissingReferenceError",
+    "ObservationValue",
     "Outcome",
+    "OutcomeObservation",
     "OutcomeStatus",
     "ProvenanceRef",
     "ProvenanceType",
@@ -93,6 +115,8 @@ __all__ = [
     "SQLiteExperienceStore",
     "ScoreBreakdown",
     "StorageError",
+    "SuccessCriterion",
+    "TemporalContractError",
     "Trait",
     "TraitStability",
     "TrustLevel",
