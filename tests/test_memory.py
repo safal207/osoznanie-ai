@@ -66,6 +66,29 @@ def test_new_version_preserves_old_history_and_becomes_active() -> None:
     assert old.content == {"state": "planned"}
 
 
+def test_resolver_never_falls_back_after_governing_revocation() -> None:
+    active = fact()
+    revoked = fact(
+        content={"state": "revoked"},
+        source_event_ids=["evt_revoked"],
+        status=MemoryStatus.REVOKED,
+        supersedes=[active.id],
+        version=2,
+        valid_from=NOW + timedelta(hours=1),
+        created_at=NOW + timedelta(hours=1),
+        updated_at=NOW + timedelta(hours=1),
+    )
+
+    assert (
+        resolve_active_memory(
+            [active, revoked],
+            memory_key=active.memory_key,
+            at=NOW + timedelta(hours=2),
+        )
+        is None
+    )
+
+
 def test_revoked_memory_is_not_active() -> None:
     revoked = fact(status=MemoryStatus.REVOKED)
     assert not revoked.is_active_at(NOW)
