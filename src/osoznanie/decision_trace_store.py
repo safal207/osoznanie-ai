@@ -60,49 +60,56 @@ class SQLiteDecisionTraceStore:
         with self.store._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
-                if self.store._record_exists(connection, trace.id):
-                    stored = self.store._load_record(connection, trace.id)
-                    if stored == trace:
-                        connection.execute("COMMIT")
-                        return trace
-                    raise DuplicateRecordError(
-                        f"Record already exists with different payload: {trace.id}"
-                    )
-
-                missing = self.store._missing_references(connection, trace)
-                if missing:
-                    raise MissingReferenceError(
-                        f"Cannot save {trace.id}; missing referenced records: "
-                        f"{', '.join(missing)}"
-                    )
-
-                self._validate_progression(connection, trace)
-                try:
-                    self.store._insert_record(connection, trace)
-                    connection.execute(
-                        """
-                        INSERT INTO decision_trace_index (
-                            trace_id, trace_version, supersedes_trace_id
-                        ) VALUES (?, ?, ?)
-                        """,
-                        (
-                            trace.id,
-                            trace.trace_version,
-                            trace.supersedes_trace_id,
-                        ),
-                    )
-                except sqlite3.IntegrityError as error:
-                    raise DuplicateRecordError(
-                        "decision trace id or predecessor already belongs to "
-                        "another immutable audit node"
-                    ) from error
-
+                persisted, _ = self._save_with_connection(connection, trace)
                 connection.execute("COMMIT")
-                return trace
+                return persisted
             except Exception:
                 if connection.in_transaction:
                     connection.execute("ROLLBACK")
                 raise
+
+    def _save_with_connection(
+        self,
+        connection: sqlite3.Connection,
+        trace: DecisionTrace,
+    ) -> tuple[DecisionTrace, bool]:
+        """Save inside an existing transaction and report whether it was inserted."""
+        if self.store._record_exists(connection, trace.id):
+            stored = self.store._load_record(connection, trace.id)
+            if stored == trace:
+                return trace, False
+            raise DuplicateRecordError(
+                f"Record already exists with different payload: {trace.id}"
+            )
+
+        missing = self.store._missing_references(connection, trace)
+        if missing:
+            raise MissingReferenceError(
+                f"Cannot save {trace.id}; missing referenced records: "
+                f"{', '.join(missing)}"
+            )
+
+        self._validate_progression(connection, trace)
+        try:
+            self.store._insert_record(connection, trace)
+            connection.execute(
+                """
+                INSERT INTO decision_trace_index (
+                    trace_id, trace_version, supersedes_trace_id
+                ) VALUES (?, ?, ?)
+                """,
+                (
+                    trace.id,
+                    trace.trace_version,
+                    trace.supersedes_trace_id,
+                ),
+            )
+        except sqlite3.IntegrityError as error:
+            raise DuplicateRecordError(
+                "decision trace id or predecessor already belongs to "
+                "another immutable audit node"
+            ) from error
+        return trace, True
 
     def get(self, trace_id: str) -> DecisionTrace:
         record = self.store.get(trace_id)
