@@ -6,11 +6,11 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from .decision_trace import DecisionTrace
+from .decision_trace import DecisionTrace, TraceAuthorizationDecision
 from .models import ProtocolRecord
 
 
@@ -71,7 +71,7 @@ class ActionIntent(ProtocolRecord):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str = Field(min_length=1)
-    type: str = "action_intent"
+    type: Literal["action_intent"] = "action_intent"
     trace_id: str = Field(min_length=1)
     requester_id: str = Field(min_length=1)
     agent_id: str = Field(min_length=1)
@@ -161,11 +161,10 @@ class ActionIntent(ProtocolRecord):
         elif self.outcome_id is not None:
             raise ValueError("only completed action intents may contain outcome_id")
 
-        if (
-            self.status is ActionIntentStatus.FAILED
-            and self.last_error_code is None
-        ):
+        if self.status is ActionIntentStatus.FAILED and self.last_error_code is None:
             raise ValueError("failed action intents require last_error_code")
+        if self.available_at < self.created_at:
+            raise ValueError("available_at must not be earlier than created_at")
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must not be earlier than created_at")
         return self
@@ -198,6 +197,8 @@ def build_action_intent(
     available_at: datetime | None = None,
 ) -> ActionIntent:
     """Build one deterministic intent from the exact persisted decision context."""
+    if trace.authorization_decision is not TraceAuthorizationDecision.ALLOW:
+        raise ActionIntentContractError("outbox dispatch requires an allow trace")
     action = proposal.action.strip()
     tool_name = normalize_optional(proposal.tool_name)
     tool_call_id = normalize_optional(proposal.tool_call_id)
