@@ -93,7 +93,7 @@ class MemoryObject(ProtocolRecord):
         return tuple((*self.source_event_ids, *self.supersedes, *self.contradicts))
 
     def is_active_at(self, at: datetime | None = None) -> bool:
-        """Return whether this version is eligible for default active retrieval."""
+        """Return whether this version independently passes lifecycle hard gates."""
         moment = at or datetime.now(UTC)
         return (
             self.status is MemoryStatus.ACTIVE
@@ -117,12 +117,22 @@ def resolve_active_memory(
     memory_key: str,
     at: datetime | None = None,
 ) -> MemoryObject | None:
-    """Resolve the latest eligible version while retaining the full history externally."""
-    candidates = [
+    """Resolve the governing version, then apply lifecycle hard gates.
+
+    A revoked, disputed, outdated, or expired governing version blocks the key.
+    Earlier active versions are never resurrected as a fallback.
+    """
+    moment = at or datetime.now(UTC)
+    effective = [
         memory
         for memory in memories
-        if memory.memory_key == memory_key and memory.is_active_at(at)
+        if memory.memory_key == memory_key and memory.valid_from <= moment
     ]
-    if not candidates:
+    if not effective:
         return None
-    return max(candidates, key=lambda memory: (memory.version, memory.updated_at, memory.id))
+
+    governing = max(
+        effective,
+        key=lambda memory: (memory.version, memory.updated_at, memory.id),
+    )
+    return governing if governing.is_active_at(moment) else None

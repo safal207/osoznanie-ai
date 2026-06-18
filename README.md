@@ -55,19 +55,25 @@ Individuality should not be an opaque profile generated once. Each adaptive trai
 - `MemoryObject`
 - `MemoryMutation`
 - `ConsolidationResult`
+- `MemoryView`
 
-## Memory consolidation boundary
+## Memory consolidation and projection
 
 ```text
 Raw events → semantic proposal → validated MemoryMutation
           → deterministic ConsolidationEngine → MemoryObject version
           → BEGIN IMMEDIATE + compare-and-swap → committed memory head
+          → bitemporal hard-gated projection → active MemoryView
 ```
 
 The semantic layer may propose a change. The deterministic layer applies versioning,
 provenance, lifecycle state, and supersession without silently rewriting history.
-The repository then commits the version only when the caller's expected head still
-matches the database head.
+The repository commits the version only when the caller's expected head still
+matches the database head. The view layer then reconstructs state using both
+**effective time** (`as_of`) and optional **knowledge time** (`known_at`).
+
+Revoked, disputed, outdated, and expired governing versions are hard gates. The
+projector never falls back to an earlier active version.
 
 See:
 
@@ -76,6 +82,7 @@ See:
 - [Versioned Memory Object v0.1](docs/memory-object-v0.1.md)
 - [Deterministic Consolidation Engine v0.1](docs/consolidation-engine-v0.1.md)
 - [Atomic Memory Commits v0.1](docs/atomic-memory-commits-v0.1.md)
+- [Bitemporal Memory View v0.1](docs/bitemporal-memory-view-v0.1.md)
 
 ## First demonstrator
 
