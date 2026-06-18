@@ -47,6 +47,15 @@ class SQLiteDecisionTraceStore:
                 """
             )
 
+    def exists(self, trace_id: str) -> bool:
+        """Return whether an immutable decision trace is already committed."""
+        with self.store._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM decision_trace_index WHERE trace_id = ?",
+                (trace_id,),
+            ).fetchone()
+        return row is not None
+
     def save(self, trace: DecisionTrace) -> DecisionTrace:
         with self.store._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
