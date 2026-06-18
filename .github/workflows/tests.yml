@@ -44,8 +44,12 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -q -e ".[dev]"
-      - name: Lint
-        run: ruff check .
+      - name: Lint package public API
+        run: ruff check src/osoznanie/__init__.py
+      - name: Lint public API test
+        run: ruff check tests/test_public_api.py
+      - name: Lint remaining project
+        run: ruff check . --exclude src/osoznanie/__init__.py --exclude tests/test_public_api.py
 
   test:
     needs: [schema, lint]
