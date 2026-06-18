@@ -1,1 +1,0 @@
-"""Osoznanie test suite."""
