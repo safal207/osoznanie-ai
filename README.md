@@ -76,6 +76,7 @@ The model may propose meaning. Deterministic code controls versioning, authoriza
 - `LessonApplication`, `SuccessCriterion`, `OutcomeObservation`, and `CriterionEvaluation` contracts;
 - mandatory audited orchestration with trace-before-action execution;
 - deterministic retry protection for already-persisted traces;
+- an executable audited QA learning-loop demonstrator;
 - schema, lint, Python 3.11/3.12, test, and benchmark CI jobs.
 
 ## Installation
@@ -149,7 +150,33 @@ orchestrator = AuditedDecisionOrchestrator(
 )
 ```
 
-Before `orchestrator.run(...)`, the database must contain committed memory and a governing access-policy memory. A complete runnable QA demonstrator is the next product milestone.
+Before `orchestrator.run(...)`, the database must contain committed memory and a governing access-policy memory.
+
+## Runnable QA demonstrator
+
+Run the complete local proof without an LLM, browser service, or external database:
+
+```bash
+python examples/qa_agent_demo.py
+```
+
+The demonstrator uses real SQLite stores and shows this sequence:
+
+```text
+missed Android Chrome defect
+→ failed release outcome
+→ validated reflection and lesson
+→ behavioral-rule memory
+→ governing allow policy
+→ authorized lesson projection
+→ trace v1 persisted
+→ browser-device checks executed
+→ defect prevented before release
+→ successful outcome
+→ superseding trace v2
+```
+
+The automated test verifies that the second release succeeds, the exact lesson and policy ids appear in trace v1, and the attached outcome creates trace v2.
 
 ## Core protocol objects
 
@@ -212,14 +239,15 @@ The audited decision pipeline enforces these boundaries:
 
 ## First demonstrator
 
-The first product use case is a persistent QA agent that can:
+The first product use case is now executable: a persistent QA agent can:
 
-1. record a test decision and its result;
-2. reflect on a missed defect or successful detection;
-3. extract a reviewable lesson;
-4. apply that lesson to a similar future release;
-5. persist the exact authorization, memory, decision, action, and outcome trail;
-6. explain why its behavior changed.
+1. record a test decision and its failed result;
+2. reflect on the missed defect;
+3. extract a human-approved lesson;
+4. store it as authorized behavioral memory;
+5. apply that lesson to a similar future release;
+6. persist the exact authorization, memory, decision, action, and outcome trail;
+7. show that the previously escaped defect is prevented before release.
 
 The primary success metric is not how many memories are stored. It is:
 
@@ -227,7 +255,7 @@ The primary success metric is not how many memories are stored. It is:
 
 ## Status
 
-Osoznanie is in active alpha development. The core memory, authorization, application, and audited-decision contracts are implemented, but interfaces and schemas may still change before the first stable release.
+Osoznanie is in active alpha development. The core memory, authorization, application, and audited-decision contracts are implemented, and the repository includes one runnable end-to-end QA proof. Interfaces and schemas may still change before the first stable release.
 
 The project does not yet guarantee distributed exactly-once tool execution. That requires a transactional outbox or an equivalent integration boundary.
 
