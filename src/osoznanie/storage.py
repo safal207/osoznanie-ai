@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from .memory import MemoryObject
 from .models import RECORD_MODELS, Record
 
 
@@ -28,6 +29,10 @@ class MissingReferenceError(StorageError):
 
 class ReferencedRecordError(StorageError):
     pass
+
+
+StoredRecord = Record | MemoryObject
+STORAGE_RECORD_MODELS = {**RECORD_MODELS, "memory": MemoryObject}
 
 
 class SQLiteExperienceStore:
@@ -100,7 +105,7 @@ class SQLiteExperienceStore:
             ).fetchone()
         return row is not None
 
-    def save(self, record: Record) -> Record:
+    def save(self, record: StoredRecord) -> StoredRecord:
         missing = [reference for reference in record.reference_ids() if not self.exists(reference)]
         if missing:
             raise MissingReferenceError(
@@ -127,7 +132,7 @@ class SQLiteExperienceStore:
 
         return record
 
-    def get(self, record_id: str) -> Record:
+    def get(self, record_id: str) -> StoredRecord:
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT type, payload FROM records WHERE id = ?",
@@ -137,16 +142,16 @@ class SQLiteExperienceStore:
         if row is None:
             raise RecordNotFoundError(record_id)
 
-        model = RECORD_MODELS.get(row["type"])
+        model = STORAGE_RECORD_MODELS.get(row["type"])
         if model is None:
             raise StorageError(f"Unknown stored record type: {row['type']}")
         return model.model_validate_json(row["payload"])  # type: ignore[return-value]
 
-    def list(self, record_type: str | None = None) -> list[Record]:
+    def list(self, record_type: str | None = None) -> list[StoredRecord]:
         query = "SELECT id FROM records"
         parameters: tuple[str, ...] = ()
         if record_type is not None:
-            if record_type not in RECORD_MODELS:
+            if record_type not in STORAGE_RECORD_MODELS:
                 raise ValueError(f"Unknown record type: {record_type}")
             query += " WHERE type = ?"
             parameters = (record_type,)
