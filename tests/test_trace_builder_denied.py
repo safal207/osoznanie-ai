@@ -1,9 +1,15 @@
 from datetime import UTC, datetime
 
 import pytest
-
-from osoznanie.access_control import AccessDecisionTrace, AccessReasonCode, AuthorizationDecision
-from osoznanie.decision_trace_builder import ActionNotAuthorizedError, DecisionTraceBuilder
+from osoznanie.access_control import (
+    AccessDecisionTrace,
+    AccessReasonCode,
+    AuthorizationDecision,
+)
+from osoznanie.decision_trace_builder import (
+    ActionNotAuthorizedError,
+    DecisionTraceBuilder,
+)
 from osoznanie.memory_view import MemoryView, MemoryViewFilterCounts
 
 
@@ -21,7 +27,13 @@ def test_denied_authorization_cannot_create_action_trace() -> None:
         requested_key_prefixes=[],
         requested_memory_types=[],
     )
-    view = MemoryView(as_of=now, known_at=now, entries=[], rejections=[], filter_counts=MemoryViewFilterCounts())
+    view = MemoryView(
+        as_of=now,
+        known_at=now,
+        entries=[],
+        rejections=[],
+        filter_counts=MemoryViewFilterCounts(),
+    )
     with pytest.raises(ActionNotAuthorizedError):
         DecisionTraceBuilder().build(
             access_trace=access,
