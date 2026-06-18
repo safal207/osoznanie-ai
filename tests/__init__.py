@@ -1,0 +1,1 @@
+"""Osoznanie test package."""
