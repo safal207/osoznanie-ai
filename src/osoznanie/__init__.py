@@ -1,5 +1,15 @@
 """Public package interface for Osoznanie AI."""
 
+from .consolidation import (
+    AmbiguousMemoryHistoryError,
+    ConsolidationEngine,
+    ConsolidationError,
+    ConsolidationResult,
+    MemoryMutation,
+    MemoryMutationKind,
+    MemoryTypeChangeError,
+    MissingMemoryHistoryError,
+)
 from .memory import (
     MemoryObject,
     MemoryStatus,
@@ -46,8 +56,12 @@ from .storage import (
 
 __all__ = [
     "AccessPolicy",
+    "AmbiguousMemoryHistoryError",
     "Commitment",
     "CommitmentStatus",
+    "ConsolidationEngine",
+    "ConsolidationError",
+    "ConsolidationResult",
     "Decision",
     "DuplicateRecordError",
     "Evidence",
@@ -56,9 +70,13 @@ __all__ = [
     "IdentitySnapshot",
     "Lesson",
     "LessonScope",
+    "MemoryMutation",
+    "MemoryMutationKind",
     "MemoryObject",
     "MemoryStatus",
     "MemoryType",
+    "MemoryTypeChangeError",
+    "MissingMemoryHistoryError",
     "MissingReferenceError",
     "Outcome",
     "OutcomeStatus",
