@@ -52,11 +52,13 @@ Individuality should not be an opaque profile generated once. Each adaptive trai
 - `Trait`
 - `Evidence`
 - `IdentitySnapshot`
+- `MemoryObject`
 
 See:
 
 - [Manifesto](docs/manifesto.md)
 - [Protocol v0.1](docs/protocol-v0.1.md)
+- [Versioned Memory Object v0.1](docs/memory-object-v0.1.md)
 
 ## First demonstrator
 
