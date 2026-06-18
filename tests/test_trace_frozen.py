@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 
 from osoznanie.decision_trace import DecisionTrace, TraceAuthorizationDecision
 
@@ -18,5 +19,5 @@ def test_trace_is_frozen() -> None:
         decision_at=now,
         created_at=now,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         trace.action = "changed"
