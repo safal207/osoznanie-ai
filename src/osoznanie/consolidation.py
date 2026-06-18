@@ -73,12 +73,7 @@ class MemoryMutation(BaseModel):
     @field_validator("source_event_ids", "contradicts")
     @classmethod
     def normalize_reference_ids(cls, values: list[str]) -> list[str]:
-        normalized = _normalize_ids(values)
-        if not normalized and cls.__name__ == "MemoryMutation":
-            # Field(min_length=1) validates source_event_ids before this branch;
-            # contradicts is allowed to remain empty.
-            return normalized
-        return normalized
+        return _normalize_ids(values)
 
     @field_validator("effective_at")
     @classmethod
