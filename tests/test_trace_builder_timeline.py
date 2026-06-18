@@ -1,9 +1,15 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
-from osoznanie.access_control import AccessDecisionTrace, AccessReasonCode, AuthorizationDecision
-from osoznanie.decision_trace_builder import DecisionContextMismatchError, DecisionTraceBuilder
+from osoznanie.access_control import (
+    AccessDecisionTrace,
+    AccessReasonCode,
+    AuthorizationDecision,
+)
+from osoznanie.decision_trace_builder import (
+    DecisionContextMismatchError,
+    DecisionTraceBuilder,
+)
 from osoznanie.memory_view import MemoryView, MemoryViewFilterCounts
 
 
