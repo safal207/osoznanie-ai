@@ -53,12 +53,25 @@ Individuality should not be an opaque profile generated once. Each adaptive trai
 - `Evidence`
 - `IdentitySnapshot`
 - `MemoryObject`
+- `MemoryMutation`
+- `ConsolidationResult`
+
+## Memory consolidation boundary
+
+```text
+Raw events → semantic proposal → validated MemoryMutation
+          → deterministic ConsolidationEngine → MemoryObject version
+```
+
+The semantic layer may propose a change. The deterministic layer applies versioning,
+provenance, lifecycle state, and supersession without silently rewriting history.
 
 See:
 
 - [Manifesto](docs/manifesto.md)
 - [Protocol v0.1](docs/protocol-v0.1.md)
 - [Versioned Memory Object v0.1](docs/memory-object-v0.1.md)
+- [Deterministic Consolidation Engine v0.1](docs/consolidation-engine-v0.1.md)
 
 ## First demonstrator
 
