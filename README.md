@@ -61,10 +61,13 @@ Individuality should not be an opaque profile generated once. Each adaptive trai
 ```text
 Raw events → semantic proposal → validated MemoryMutation
           → deterministic ConsolidationEngine → MemoryObject version
+          → BEGIN IMMEDIATE + compare-and-swap → committed memory head
 ```
 
 The semantic layer may propose a change. The deterministic layer applies versioning,
 provenance, lifecycle state, and supersession without silently rewriting history.
+The repository then commits the version only when the caller's expected head still
+matches the database head.
 
 See:
 
@@ -72,6 +75,7 @@ See:
 - [Protocol v0.1](docs/protocol-v0.1.md)
 - [Versioned Memory Object v0.1](docs/memory-object-v0.1.md)
 - [Deterministic Consolidation Engine v0.1](docs/consolidation-engine-v0.1.md)
+- [Atomic Memory Commits v0.1](docs/atomic-memory-commits-v0.1.md)
 
 ## First demonstrator
 
