@@ -4,28 +4,32 @@
 
 > An agent should not only remember the human. It should remember who it became beside the human.
 
-Most AI memory systems store facts and retrieve similar information. Osoznanie is exploring a different question:
+Most AI memory systems store facts and retrieve similar information. Osoznanie explores a different question:
 
 **How can an agent turn its own history into auditable experience that changes future behavior?**
 
 ```text
-Event → Decision → Outcome → Reflection → Lesson → Identity Change
+Event → Decision → Outcome → Reflection → Lesson → Memory
+                                      ↓
+Authorization → DecisionTrace → Action → Outcome evidence
+                                      ↓
+                            evolving behavior and identity
 ```
 
 ## What Osoznanie is
 
-Osoznanie is an early-stage open protocol and software layer for agents that need continuity across tasks, sessions, models, and environments.
+Osoznanie is an early-stage open protocol and Python software layer for agents that need continuity across tasks, sessions, models, and environments.
 
-It is designed to represent:
+It represents:
 
 - events the agent participated in;
-- decisions the agent made;
-- outcomes and feedback;
+- decisions, outcomes, and feedback;
 - reflections grounded in evidence;
-- reusable lessons;
-- commitments to people or systems;
-- identity traits formed through validated experience;
-- a versioned history of how the agent changed.
+- reusable lessons and success criteria;
+- commitments and identity traits;
+- versioned memory with provenance and lifecycle state;
+- authorization decisions and the exact memory used for an action;
+- immutable traces explaining why agent behavior changed.
 
 ## What Osoznanie is not
 
@@ -33,15 +37,123 @@ Osoznanie does not claim to create consciousness or sentience. It focuses on per
 
 A static persona prompt is a costume. Osoznanie aims to make an agent's behavior traceable to its actual history.
 
-## Core principle
+## Current architecture
 
 ```text
-History + Memory + Reflection + Choice = Evolving Individuality
+Raw events
+    ↓
+semantic MemoryMutation proposal
+    ↓
+deterministic consolidation and immutable versioning
+    ↓
+atomic compare-and-swap memory commit
+    ↓
+bitemporal projection: as_of + known_at
+    ↓
+deny-by-default authorization and restricted read
+    ↓
+decision proposal
+    ↓
+immutable DecisionTrace persisted before action
+    ↓
+optional action execution
+    ↓
+optional Outcome and superseding DecisionTrace
 ```
 
-Individuality should not be an opaque profile generated once. Each adaptive trait should be linked to evidence, confidence, validation status, and a change history.
+The model may propose meaning. Deterministic code controls versioning, authorization, persistence order, idempotency, and audit evidence.
 
-## Initial protocol objects
+## Implemented capabilities
+
+- immutable protocol records and deterministic JSON serialization;
+- versioned `MemoryObject` history with provenance and lifecycle status;
+- deterministic consolidation with upsert, dispute, and revoke operations;
+- atomic SQLite memory-head commits with compare-and-swap protection;
+- bitemporal memory projection using effective time and knowledge time;
+- deny-by-default access policies stored as versioned memory;
+- restricted SQLite reads that do not deserialize denied payloads;
+- immutable deterministic `DecisionTrace` chains;
+- `LessonApplication`, `SuccessCriterion`, `OutcomeObservation`, and `CriterionEvaluation` contracts;
+- mandatory audited orchestration with trace-before-action execution;
+- deterministic retry protection for already-persisted traces;
+- schema, lint, Python 3.11/3.12, test, and benchmark CI jobs.
+
+## Installation
+
+Osoznanie is currently an alpha project and is not presented as a stable PyPI release. Install it from source:
+
+```bash
+git clone https://github.com/safal207/osoznanie-ai.git
+cd osoznanie-ai
+python -m pip install -e ".[dev]"
+pytest
+```
+
+Python 3.11 or newer is required.
+
+## Public API quickstart
+
+Core contracts are available from the package root:
+
+```python
+from datetime import UTC, datetime
+
+from osoznanie import (
+    AuditedDecisionRequest,
+    AuthorizationQuery,
+    DecisionProposal,
+)
+
+now = datetime.now(UTC)
+
+request = AuditedDecisionRequest(
+    authorization_query=AuthorizationQuery(
+        requester_id="qa-agent",
+        action="release.review",
+        as_of=now,
+        known_at=now,
+        key_prefixes=["qa.lesson."],
+    ),
+    agent_id="qa-agent",
+    decision_at=now,
+)
+
+proposal = DecisionProposal(
+    action="release.review",
+    alternatives_considered=["skip-regression"],
+    reason_codes=["validated_prior_miss"],
+    tool_name="test-runner",
+    input_hash="sha256:your-input-hash",
+)
+```
+
+A SQLite orchestration boundary can be wired from the same public namespace:
+
+```python
+from osoznanie import (
+    AuditedDecisionOrchestrator,
+    AuthorizationEngine,
+    SQLiteAccessPolicyStore,
+    SQLiteAuthorizedMemoryStore,
+    SQLiteDecisionTraceStore,
+    SQLiteExperienceStore,
+)
+
+store = SQLiteExperienceStore("osoznanie.db")
+
+orchestrator = AuditedDecisionOrchestrator(
+    authorization=AuthorizationEngine(SQLiteAccessPolicyStore(store)),
+    memory_store=SQLiteAuthorizedMemoryStore(store),
+    trace_store=SQLiteDecisionTraceStore(store),
+    outcome_store=store,
+)
+```
+
+Before `orchestrator.run(...)`, the database must contain committed memory and a governing access-policy memory. A complete runnable QA demonstrator is the next product milestone.
+
+## Core protocol objects
+
+### Experience and identity
 
 - `Event`
 - `Decision`
@@ -52,30 +164,42 @@ Individuality should not be an opaque profile generated once. Each adaptive trai
 - `Trait`
 - `Evidence`
 - `IdentitySnapshot`
+
+### Memory and application
+
 - `MemoryObject`
 - `MemoryMutation`
 - `ConsolidationResult`
 - `MemoryView`
+- `LessonApplication`
+- `SuccessCriterion`
+- `OutcomeObservation`
+- `CriterionEvaluation`
 
-## Memory consolidation and projection
+### Authorization and audit
 
-```text
-Raw events → semantic proposal → validated MemoryMutation
-          → deterministic ConsolidationEngine → MemoryObject version
-          → BEGIN IMMEDIATE + compare-and-swap → committed memory head
-          → bitemporal hard-gated projection → active MemoryView
-```
+- `AuthorizationQuery`
+- `AccessPolicyContent`
+- `AccessDecisionTrace`
+- `DecisionProposal`
+- `AuditedDecisionRequest`
+- `AuditedDecisionResult`
+- `DecisionTrace`
 
-The semantic layer may propose a change. The deterministic layer applies versioning,
-provenance, lifecycle state, and supersession without silently rewriting history.
-The repository commits the version only when the caller's expected head still
-matches the database head. The view layer then reconstructs state using both
-**effective time** (`as_of`) and optional **knowledge time** (`known_at`).
+## Safety invariants
 
-Revoked, disputed, outdated, and expired governing versions are hard gates. The
-projector never falls back to an earlier active version.
+The audited decision pipeline enforces these boundaries:
 
-See:
+1. denied requests do not invoke the decision or action callback;
+2. the decision callback receives only the authorized `MemoryView`;
+3. the proposed action must equal the authorized action;
+4. the initial immutable trace is persisted before external execution;
+5. trace persistence failure prevents the action;
+6. action failure does not rewrite the original trace;
+7. an outcome creates a superseding trace rather than mutating history;
+8. denied external results do not disclose protected keys or policy identifiers.
+
+## Documentation
 
 - [Manifesto](docs/manifesto.md)
 - [Protocol v0.1](docs/protocol-v0.1.md)
@@ -83,16 +207,19 @@ See:
 - [Deterministic Consolidation Engine v0.1](docs/consolidation-engine-v0.1.md)
 - [Atomic Memory Commits v0.1](docs/atomic-memory-commits-v0.1.md)
 - [Bitemporal Memory View v0.1](docs/bitemporal-memory-view-v0.1.md)
+- [Bitemporal Access Control v0.1](docs/bitemporal-access-control-v0.1.md)
+- [Audited Decision Orchestrator v0.1](docs/audited-decision-orchestrator-v0.1.md)
 
 ## First demonstrator
 
-The first planned use case is a persistent QA agent that can:
+The first product use case is a persistent QA agent that can:
 
 1. record a test decision and its result;
 2. reflect on a missed defect or successful detection;
 3. extract a reviewable lesson;
 4. apply that lesson to a similar future release;
-5. explain exactly why its behavior changed.
+5. persist the exact authorization, memory, decision, action, and outcome trail;
+6. explain why its behavior changed.
 
 The primary success metric is not how many memories are stored. It is:
 
@@ -100,10 +227,12 @@ The primary success metric is not how many memories are stored. It is:
 
 ## Status
 
-Osoznanie is currently in the protocol-definition stage. Interfaces and schemas may change substantially before the first stable release.
+Osoznanie is in active alpha development. The core memory, authorization, application, and audited-decision contracts are implemented, but interfaces and schemas may still change before the first stable release.
+
+The project does not yet guarantee distributed exactly-once tool execution. That requires a transactional outbox or an equivalent integration boundary.
 
 ## Vision
 
-Osoznanie aims to become a portable experience layer that remains independent of any single model provider or agent framework.
+Osoznanie aims to become a portable experience layer independent of any single model provider or agent framework.
 
-The model may change. The agent's accountable history should not disappear with it.
+**The model may change. The agent's accountable history should not disappear with it.**
