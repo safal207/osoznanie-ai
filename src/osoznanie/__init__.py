@@ -46,8 +46,8 @@ from .decision_trace import DecisionTrace, TraceAuthorizationDecision
 from .decision_trace_builder import (
     ActionNotAuthorizedError,
     DecisionContextMismatchError,
-    DecisionTraceBuildError,
     DecisionTraceBuilder,
+    DecisionTraceBuildError,
     OutcomeAlreadyAttachedError,
 )
 from .decision_trace_store import (
