@@ -3,6 +3,16 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from osoznanie.application import (
+    CriterionEvaluation,
+    CriterionOperator,
+    CriterionResult,
+    EvaluationReasonCode,
+    LessonApplication,
+    ObservationValue,
+    OutcomeObservation,
+    SuccessCriterion,
+)
 from osoznanie.memory import MemoryObject, MemoryType
 from osoznanie.models import (
     Commitment,
@@ -88,6 +98,40 @@ def sample_records():
             source_event_ids=["evt_1"],
             confidence=0.9,
             importance=0.7,
+        ),
+        "success-criterion.schema.json": SuccessCriterion(
+            name="Checkout completes",
+            definition="The checkout completion signal is true.",
+            definition_version="checkout-completes-v1",
+            evaluator_type="deterministic-comparison",
+            evaluator_version="comparison-v1",
+            observation_window_seconds=300,
+            metric_key="checkout_completed",
+            operator=CriterionOperator.EQ,
+            expected_value=True,
+        ),
+        "lesson-application.schema.json": LessonApplication(
+            lesson_id="les_1",
+            recall_query_id="qry_1",
+            retrieval_execution_id="ret_1",
+            action_execution_id="act_1",
+            success_criterion_id="crt_1",
+            environment_snapshot_id="env_1",
+            actor_id="agent_qa",
+            idempotency_key="checkout-run-001",
+        ),
+        "outcome-observation.schema.json": OutcomeObservation(
+            lesson_application_ids=["app_1"],
+            action_execution_id="act_1",
+            values=[ObservationValue(key="checkout_completed", value=True)],
+            collection_policy_version="checkout-observation-v1",
+        ),
+        "criterion-evaluation.schema.json": CriterionEvaluation(
+            criterion_id="crt_1",
+            lesson_application_ids=["app_1"],
+            result=CriterionResult.INDETERMINATE,
+            reason_codes=[EvaluationReasonCode.MISSING_OBSERVATION],
+            evaluator_version="comparison-v1",
         ),
         "recall-query.schema.json": RecallQuery(
             agent_id="agent_qa",
