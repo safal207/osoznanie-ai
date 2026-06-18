@@ -1,6 +1,10 @@
 from datetime import UTC, datetime
 
-from osoznanie.access_control import AccessDecisionTrace, AccessReasonCode, AuthorizationDecision
+from osoznanie.access_control import (
+    AccessDecisionTrace,
+    AccessReasonCode,
+    AuthorizationDecision,
+)
 from osoznanie.decision_trace_builder import DecisionTraceBuilder
 from osoznanie.memory_view import MemoryView, MemoryViewFilterCounts
 
