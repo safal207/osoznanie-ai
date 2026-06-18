@@ -54,14 +54,20 @@ deny-by-default authorization and restricted read
     ↓
 decision proposal
     ↓
-immutable DecisionTrace persisted before action
+immutable DecisionTrace persisted before dispatch
     ↓
-optional action execution
+transactional ActionIntent outbox
     ↓
-optional Outcome and superseding DecisionTrace
+leased worker + immutable started ActionAttempt
+    ↓
+protected input resolution + hash check + typed adapter
+    ↓
+atomic terminal ActionAttempt + outbox transition
+    ↓
+Outcome evidence and future learning
 ```
 
-The model may propose meaning. Deterministic code controls versioning, authorization, persistence order, idempotency, and audit evidence.
+The model may propose meaning. Deterministic code controls versioning, authorization, persistence order, idempotency, dispatch leases, typed execution boundaries, and audit evidence.
 
 ## Implemented capabilities
 
@@ -75,7 +81,11 @@ The model may propose meaning. Deterministic code controls versioning, authoriza
 - immutable deterministic `DecisionTrace` chains;
 - `LessonApplication`, `SuccessCriterion`, `OutcomeObservation`, and `CriterionEvaluation` contracts;
 - mandatory audited orchestration with trace-before-action execution;
-- deterministic retry protection for already-persisted traces;
+- durable `ActionIntent` outbox leasing and retry scheduling;
+- immutable started and terminal `ActionAttempt` evidence;
+- atomic terminal-attempt and outbox finalization;
+- worker dispatch with protected input resolution, hash verification, and typed tool adapters;
+- deterministic retry protection for already-persisted traces and terminal attempts;
 - schema, lint, Python 3.11/3.12, test, and benchmark CI jobs.
 
 ## Installation
@@ -176,7 +186,7 @@ Before `orchestrator.run(...)`, the database must contain committed memory and a
 - `OutcomeObservation`
 - `CriterionEvaluation`
 
-### Authorization and audit
+### Authorization, dispatch, and audit
 
 - `AuthorizationQuery`
 - `AccessPolicyContent`
@@ -185,19 +195,27 @@ Before `orchestrator.run(...)`, the database must contain committed memory and a
 - `AuditedDecisionRequest`
 - `AuditedDecisionResult`
 - `DecisionTrace`
+- `ActionIntent`
+- `ActionAttempt`
+- `ActionWorkerDispatcher`
+- `ToolExecutionResult`
 
 ## Safety invariants
 
-The audited decision pipeline enforces these boundaries:
+The audited decision and dispatch pipeline enforces these boundaries:
 
 1. denied requests do not invoke the decision or action callback;
 2. the decision callback receives only the authorized `MemoryView`;
 3. the proposed action must equal the authorized action;
-4. the initial immutable trace is persisted before external execution;
+4. the initial immutable trace is persisted before dispatch;
 5. trace persistence failure prevents the action;
-6. action failure does not rewrite the original trace;
-7. an outcome creates a superseding trace rather than mutating history;
-8. denied external results do not disclose protected keys or policy identifiers.
+6. raw protected tool input is not stored in `ActionIntent`;
+7. a started `ActionAttempt` is persisted before the external adapter runs;
+8. input hash and typed schema validation pass before tool invocation;
+9. adapters never receive the raw lease token;
+10. terminal attempt evidence and outbox state change commit atomically;
+11. action failure does not rewrite prior evidence;
+12. denied external results do not disclose protected keys or policy identifiers.
 
 ## Documentation
 
@@ -209,6 +227,7 @@ The audited decision pipeline enforces these boundaries:
 - [Bitemporal Memory View v0.1](docs/bitemporal-memory-view-v0.1.md)
 - [Bitemporal Access Control v0.1](docs/bitemporal-access-control-v0.1.md)
 - [Audited Decision Orchestrator v0.1](docs/audited-decision-orchestrator-v0.1.md)
+- [Worker Dispatcher and Typed Tool Adapters v0.1](docs/worker-dispatcher-v0.1.md)
 
 ## First demonstrator
 
@@ -227,9 +246,9 @@ The primary success metric is not how many memories are stored. It is:
 
 ## Status
 
-Osoznanie is in active alpha development. The core memory, authorization, application, and audited-decision contracts are implemented, but interfaces and schemas may still change before the first stable release.
+Osoznanie is in active alpha development. The core memory, authorization, application, audited-decision, durable dispatch, and typed worker contracts are implemented, but interfaces and schemas may still change before the first stable release.
 
-The project does not yet guarantee distributed exactly-once tool execution. That requires a transactional outbox or an equivalent integration boundary.
+The local execution layer provides durable at-least-once delivery and atomic evidence/outbox finalization. Distributed exactly-once behavior still depends on external providers honoring the supplied idempotency key.
 
 ## Vision
 
