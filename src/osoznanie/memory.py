@@ -22,6 +22,7 @@ class MemoryType(StrEnum):
     SKILL = "skill"
     FAILURE_PATTERN = "failure_pattern"
     BEHAVIORAL_RULE = "behavioral_rule"
+    ACCESS_POLICY = "access_policy"
 
 
 class MemoryStatus(StrEnum):
