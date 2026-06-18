@@ -10,19 +10,6 @@ from .consolidation import (
     MemoryTypeChangeError,
     MissingMemoryHistoryError,
 )
-from .decision_trace import DecisionTrace, TraceAuthorizationDecision
-from .decision_trace_builder import (
-    ActionNotAuthorizedError,
-    DecisionContextMismatchError,
-    DecisionTraceBuildError,
-    DecisionTraceBuilder,
-    OutcomeAlreadyAttachedError,
-)
-from .decision_trace_store import (
-    DecisionTraceStorageError,
-    InvalidDecisionTraceProgressionError,
-    SQLiteDecisionTraceStore,
-)
 from .memory import (
     MemoryObject,
     MemoryStatus,
@@ -92,7 +79,6 @@ from .storage import (
 
 __all__ = [
     "AccessPolicy",
-    "ActionNotAuthorizedError",
     "AmbiguousMemoryHistoryError",
     "Commitment",
     "CommitmentStatus",
@@ -101,17 +87,11 @@ __all__ = [
     "ConsolidationError",
     "ConsolidationResult",
     "Decision",
-    "DecisionContextMismatchError",
-    "DecisionTrace",
-    "DecisionTraceBuildError",
-    "DecisionTraceBuilder",
-    "DecisionTraceStorageError",
     "DuplicateRecordError",
     "Evidence",
     "Event",
     "Hypothesis",
     "IdentitySnapshot",
-    "InvalidDecisionTraceProgressionError",
     "InvalidMemoryProgressionError",
     "InvalidMemoryTimestampError",
     "Lesson",
@@ -138,7 +118,6 @@ __all__ = [
     "MissingMemoryHistoryError",
     "MissingReferenceError",
     "Outcome",
-    "OutcomeAlreadyAttachedError",
     "OutcomeStatus",
     "ProvenanceRef",
     "ProvenanceType",
@@ -150,12 +129,10 @@ __all__ = [
     "ReferencedRecordError",
     "Reflection",
     "RiskLevel",
-    "SQLiteDecisionTraceStore",
     "SQLiteExperienceStore",
     "SQLiteMemoryViewStore",
     "ScoreBreakdown",
     "StorageError",
-    "TraceAuthorizationDecision",
     "Trait",
     "TraitStability",
     "TrustLevel",
