@@ -129,7 +129,10 @@ def fsync_directory(path: Path) -> None:
     except OSError:
         return
     try:
-        os.fsync(descriptor)
+        try:
+            os.fsync(descriptor)
+        except OSError:
+            return
     finally:
         os.close(descriptor)
 
@@ -242,8 +245,12 @@ def publish_staged_set(
     )
     pointer_path = publication_root / CURRENT_POINTER_FILE
     temporary_pointer = publication_root / f".{CURRENT_POINTER_FILE}.{uuid4().hex}.tmp"
-    write_text_durable(temporary_pointer, pointer.model_dump_json(indent=2) + "\n")
-    os.replace(temporary_pointer, pointer_path)
+    try:
+        write_text_durable(temporary_pointer, pointer.model_dump_json(indent=2) + "\n")
+        os.replace(temporary_pointer, pointer_path)
+    except Exception:
+        temporary_pointer.unlink(missing_ok=True)
+        raise
     fsync_directory(publication_root)
 
     return PublishedArtifactSet(
