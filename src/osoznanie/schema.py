@@ -10,7 +10,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from .decision_trace import DecisionTrace
 from .memory import MemoryObject
 from .models import RECORD_MODELS
 from .recall import RecallQuery, RecallResult
@@ -22,7 +21,6 @@ SCHEMA_BASE_URI = f"https://osoznanie.ai/schemas/v{PROTOCOL_VERSION}"
 PUBLIC_SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     **RECORD_MODELS,
     "memory": MemoryObject,
-    "decision_trace": DecisionTrace,
     "recall_query": RecallQuery,
     "recall_result": RecallResult,
 }
