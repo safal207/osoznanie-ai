@@ -1,5 +1,17 @@
 """Public package interface for Osoznanie AI."""
 
+from .access_control import (
+    AccessDecisionTrace,
+    AccessEffect,
+    AccessPolicyContent,
+    AccessReasonCode,
+    AccessResource,
+    AccessResourceKind,
+    AuthorizationDecision,
+    AuthorizationEngine,
+    AuthorizationQuery,
+    AuthorizedMemoryViewEngine,
+)
 from .application import (
     CriterionEvaluation,
     CriterionOperator,
@@ -29,6 +41,19 @@ from .consolidation import (
     MemoryMutationKind,
     MemoryTypeChangeError,
     MissingMemoryHistoryError,
+)
+from .decision_trace import DecisionTrace, TraceAuthorizationDecision
+from .decision_trace_builder import (
+    ActionNotAuthorizedError,
+    DecisionContextMismatchError,
+    DecisionTraceBuildError,
+    DecisionTraceBuilder,
+    OutcomeAlreadyAttachedError,
+)
+from .decision_trace_store import (
+    DecisionTraceStorageError,
+    InvalidDecisionTraceProgressionError,
+    SQLiteDecisionTraceStore,
 )
 from .memory import (
     MemoryObject,
@@ -77,6 +102,23 @@ from .models import (
     TrustLevel,
     ValidationStatus,
 )
+from .orchestration import (
+    ActionExecutionError,
+    ActionExecutor,
+    AuditedDecisionOrchestrator,
+    AuditedDecisionRequest,
+    AuditedDecisionResult,
+    AuditedDecisionStatus,
+    DecisionCallback,
+    DecisionContext,
+    DecisionProposal,
+    DecisionProposalError,
+    DecisionTraceSink,
+    OrchestrationError,
+    OutcomePersistenceError,
+    OutcomeSink,
+    TracePersistenceError,
+)
 from .recall import (
     ProvenanceRef,
     ProvenanceType,
@@ -87,6 +129,7 @@ from .recall import (
     RiskLevel,
     ScoreBreakdown,
 )
+from .sqlite_access_control import SQLiteAccessPolicyStore, SQLiteAuthorizedMemoryStore
 from .sqlite_memory_view import SQLiteMemoryViewStore
 from .storage import (
     DuplicateRecordError,
@@ -98,13 +141,30 @@ from .storage import (
 )
 
 __all__ = [
+    "AccessDecisionTrace",
+    "AccessEffect",
     "AccessPolicy",
+    "AccessPolicyContent",
+    "AccessReasonCode",
+    "AccessResource",
+    "AccessResourceKind",
+    "ActionExecutionError",
+    "ActionExecutor",
+    "ActionNotAuthorizedError",
     "AmbiguousMemoryHistoryError",
     "ApplicationContractReferenceError",
     "ApplicationIdempotencyConflictError",
     "ApplicationRecordNotFoundError",
     "ApplicationStoreError",
     "ApplicationTemporalContractError",
+    "AuditedDecisionOrchestrator",
+    "AuditedDecisionRequest",
+    "AuditedDecisionResult",
+    "AuditedDecisionStatus",
+    "AuthorizationDecision",
+    "AuthorizationEngine",
+    "AuthorizationQuery",
+    "AuthorizedMemoryViewEngine",
     "Commitment",
     "CommitmentStatus",
     "CommittedMemoryVersion",
@@ -115,6 +175,16 @@ __all__ = [
     "CriterionOperator",
     "CriterionResult",
     "Decision",
+    "DecisionCallback",
+    "DecisionContext",
+    "DecisionContextMismatchError",
+    "DecisionProposal",
+    "DecisionProposalError",
+    "DecisionTrace",
+    "DecisionTraceBuildError",
+    "DecisionTraceBuilder",
+    "DecisionTraceSink",
+    "DecisionTraceStorageError",
     "DuplicateApplicationRecordError",
     "DuplicateRecordError",
     "EvaluationReasonCode",
@@ -122,6 +192,7 @@ __all__ = [
     "Event",
     "Hypothesis",
     "IdentitySnapshot",
+    "InvalidDecisionTraceProgressionError",
     "InvalidMemoryProgressionError",
     "InvalidMemoryTimestampError",
     "Lesson",
@@ -150,8 +221,12 @@ __all__ = [
     "MissingMemoryHistoryError",
     "MissingReferenceError",
     "ObservationValue",
+    "OrchestrationError",
     "Outcome",
+    "OutcomeAlreadyAttachedError",
     "OutcomeObservation",
+    "OutcomePersistenceError",
+    "OutcomeSink",
     "OutcomeStatus",
     "ProvenanceRef",
     "ProvenanceType",
@@ -163,12 +238,17 @@ __all__ = [
     "ReferencedRecordError",
     "Reflection",
     "RiskLevel",
+    "SQLiteAccessPolicyStore",
     "SQLiteApplicationStore",
+    "SQLiteAuthorizedMemoryStore",
+    "SQLiteDecisionTraceStore",
     "SQLiteExperienceStore",
     "SQLiteMemoryViewStore",
     "ScoreBreakdown",
     "StorageError",
     "SuccessCriterion",
+    "TraceAuthorizationDecision",
+    "TracePersistenceError",
     "Trait",
     "TraitStability",
     "TrustLevel",
