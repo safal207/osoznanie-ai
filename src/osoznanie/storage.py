@@ -336,8 +336,8 @@ class SQLiteExperienceStore:
 
         self._validate_contract(record)
 
-        try:
-            with self._connect() as connection:
+        with self._connect() as connection:
+            try:
                 connection.execute(
                     """
                     INSERT INTO records (id, type, payload, created_at)
@@ -368,12 +368,16 @@ class SQLiteExperienceStore:
                         ),
                     )
                 connection.commit()
-        except sqlite3.IntegrityError as error:
-            if isinstance(record, LessonApplication):
-                raise IdempotencyConflictError(
-                    "lesson application id or idempotency key already exists"
-                ) from error
-            raise DuplicateRecordError(f"Record already exists: {record.id}") from error
+            except sqlite3.IntegrityError as error:
+                connection.rollback()
+                if isinstance(record, LessonApplication):
+                    raise IdempotencyConflictError(
+                        "lesson application id or idempotency key already exists"
+                    ) from error
+                raise DuplicateRecordError(f"Record already exists: {record.id}") from error
+            except Exception:
+                connection.rollback()
+                raise
 
         return record
 
