@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .artifact_integrity import (
+    ArtifactIntegrityError,
+    ArtifactIntegrityIndex,
+    PublishedArtifactSet,
+    build_integrity_index,
+    create_staging_directory,
+    publish_staged_set,
+    resolve_current_set,
+    verify_integrity_index,
+    write_text_durable,
+)
 from .audit_contracts import AuditRetrievedLesson, RestrictedDecisionPathAudit
 from .audit_policy import ranking_policy_ref_for
 from .decision_paths import (
@@ -31,7 +43,8 @@ from .simulation_fixtures import DecisionSimulationCase
 from .strategies import DEFAULT_STRATEGIES, RetrievalStrategy
 
 PUBLIC_PATH_VERSION = "decision-path-public-v0.3"
-MANIFEST_VERSION = "decision-path-manifest-v0.3"
+MANIFEST_VERSION = "decision-path-manifest-v0.4"
+MANIFEST_FILE_NAME = "decision-path-manifest.json"
 
 
 class PublicDecisionPathArtifact(BaseModel):
@@ -73,6 +86,13 @@ class AuditPathManifestEntry(BaseModel):
     public_mermaid_file: str
     audit_json_file: str
 
+    def artifact_paths(self) -> tuple[str, str, str]:
+        return (
+            self.public_json_file,
+            self.public_mermaid_file,
+            self.audit_json_file,
+        )
+
 
 class AuditPathManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -81,6 +101,24 @@ class AuditPathManifest(BaseModel):
     evaluated_at: str
     graph_count: int = Field(ge=0)
     entries: list[AuditPathManifestEntry]
+    integrity: ArtifactIntegrityIndex | None = None
+
+    @model_validator(mode="after")
+    def validate_manifest(self) -> AuditPathManifest:
+        if self.graph_count != len(self.entries):
+            raise ValueError("graph count must match manifest entries")
+        expected_paths = sorted(
+            path for entry in self.entries for path in entry.artifact_paths()
+        )
+        if len(expected_paths) != len(set(expected_paths)):
+            raise ValueError("manifest artifact paths must be unique")
+        if self.integrity is not None:
+            actual_paths = [item.path for item in self.integrity.files]
+            if actual_paths != expected_paths:
+                raise ValueError(
+                    "integrity records must exactly match manifest artifact paths"
+                )
+        return self
 
 
 class AuditPathBundle(BaseModel):
@@ -92,6 +130,7 @@ class AuditPathBundle(BaseModel):
     manifest: AuditPathManifest
 
 
+
 def _classification(
     result: AuditedDecisionTrialResult,
 ) -> tuple[DecisionPathStatus, DecisionPathReasonCode]:
@@ -100,6 +139,7 @@ def _classification(
         repeated_error=result.repeated_error,
         abstained=result.abstained,
     )
+
 
 
 def _public_graph(
@@ -139,6 +179,7 @@ def _public_graph(
     )
 
 
+
 def _restricted_audit(
     graph: PublicDecisionPathArtifact,
     report: StructuredDecisionSimulationReport,
@@ -164,6 +205,7 @@ def _restricted_audit(
         status=graph.status,
         reason_code=graph.reason_code,
     )
+
 
 
 def build_audit_path_bundle(
@@ -220,8 +262,10 @@ def build_audit_path_bundle(
     )
 
 
+
 def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', "'").replace("\n", " ")
+
 
 
 def render_public_mermaid(graph: PublicDecisionPathArtifact) -> str:
@@ -248,30 +292,73 @@ def render_public_mermaid(graph: PublicDecisionPathArtifact) -> str:
     return "\n".join(lines) + "\n"
 
 
+
+def verify_audit_path_set(set_dir: Path) -> AuditPathManifest:
+    """Parse and verify one immutable decision-path artifact set."""
+
+    manifest_path = set_dir / MANIFEST_FILE_NAME
+    if not manifest_path.is_file():
+        raise ArtifactIntegrityError("decision-path manifest is missing")
+    manifest = AuditPathManifest.model_validate_json(manifest_path.read_text("utf-8"))
+    if manifest.integrity is None:
+        raise ArtifactIntegrityError("decision-path manifest has no integrity index")
+    verify_integrity_index(set_dir, MANIFEST_FILE_NAME, manifest.integrity)
+    return manifest
+
+
+
+def verify_published_audit_path_set(publication_root: Path) -> PublishedArtifactSet:
+    """Resolve the atomic pointer and verify the currently published set."""
+
+    published = resolve_current_set(publication_root)
+    verify_audit_path_set(published.set_dir)
+    return published
+
+
+
 def write_audit_path_bundle(
     bundle: AuditPathBundle,
     output_dir: Path,
 ) -> tuple[Path, list[Path]]:
-    graph_dir = output_dir / "graphs"
-    graph_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    for graph, audit in zip(bundle.public_graphs, bundle.audits, strict=True):
-        public_json = graph_dir / f"{graph.graph_id}.public.json"
-        public_mermaid = graph_dir / f"{graph.graph_id}.public.mmd"
-        audit_json = graph_dir / f"{graph.graph_id}.audit.json"
-        public_json.write_text(
-            graph.model_dump_json(indent=2) + "\n",
-            encoding="utf-8",
+    """Stage, verify, and atomically publish a versioned decision-path set."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    staging_dir = create_staging_directory(output_dir)
+    relative_paths: list[str] = []
+    try:
+        for graph, audit, entry in zip(
+            bundle.public_graphs,
+            bundle.audits,
+            bundle.manifest.entries,
+            strict=True,
+        ):
+            payloads = {
+                entry.public_json_file: graph.model_dump_json(indent=2) + "\n",
+                entry.public_mermaid_file: render_public_mermaid(graph),
+                entry.audit_json_file: audit.model_dump_json(indent=2) + "\n",
+            }
+            for relative_path, payload in payloads.items():
+                write_text_durable(staging_dir / relative_path, payload)
+                relative_paths.append(relative_path)
+
+        integrity = build_integrity_index(staging_dir, relative_paths)
+        published_manifest = bundle.manifest.model_copy(
+            update={"integrity": integrity}
         )
-        public_mermaid.write_text(render_public_mermaid(graph), encoding="utf-8")
-        audit_json.write_text(
-            audit.model_dump_json(indent=2) + "\n",
-            encoding="utf-8",
+        staged_manifest_path = staging_dir / MANIFEST_FILE_NAME
+        write_text_durable(
+            staged_manifest_path,
+            published_manifest.model_dump_json(indent=2) + "\n",
         )
-        written.extend([public_json, public_mermaid, audit_json])
-    manifest_path = output_dir / "decision-path-manifest.json"
-    manifest_path.write_text(
-        bundle.manifest.model_dump_json(indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return manifest_path, written
+        verify_audit_path_set(staging_dir)
+        published = publish_staged_set(
+            staging_dir,
+            output_dir,
+            MANIFEST_FILE_NAME,
+        )
+        final_paths = [published.set_dir / path for path in sorted(relative_paths)]
+        return published.manifest_path, final_paths
+    except Exception:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        raise
