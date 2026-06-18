@@ -2,17 +2,20 @@ from pathlib import Path
 
 import pytest
 
+import benchmarks.artifact_integrity as artifact_integrity
 import benchmarks.audit_paths as audit_paths
 from benchmarks.artifact_integrity import (
     CURRENT_POINTER_FILE,
     ArtifactFileDigest,
     ArtifactIntegrityError,
     ArtifactIntegrityIndex,
+    sha256_file,
     verify_integrity_index,
 )
 from benchmarks.audit_paths import (
     MANIFEST_FILE_NAME,
     build_audit_path_bundle,
+    verify_audit_path_set,
     verify_published_audit_path_set,
     write_audit_path_bundle,
 )
@@ -44,13 +47,31 @@ def test_atomic_publish_is_verifiable_and_reproducible(tmp_path: Path) -> None:
     assert (tmp_path / "first" / CURRENT_POINTER_FILE).is_file()
 
 
-def test_one_changed_byte_breaks_verification(tmp_path: Path) -> None:
+def test_manifest_hashes_exact_bytes_and_excludes_itself(tmp_path: Path) -> None:
+    bundle = _build_bundle()
+    write_audit_path_bundle(bundle, tmp_path / "published")
+    published = verify_published_audit_path_set(tmp_path / "published")
+    manifest = verify_audit_path_set(published.set_dir)
+
+    assert manifest.integrity is not None
+    assert MANIFEST_FILE_NAME not in {item.path for item in manifest.integrity.files}
+    for item in manifest.integrity.files:
+        path = published.set_dir / item.path
+        assert item.size_bytes == path.stat().st_size
+        assert item.sha256 == sha256_file(path)
+
+
+def test_same_size_one_byte_change_breaks_hash_verification(tmp_path: Path) -> None:
     bundle = _build_bundle()
     _, files = write_audit_path_bundle(bundle, tmp_path / "published")
     target = files[0]
-    target.write_bytes(target.read_bytes() + b"x")
+    original = target.read_bytes()
+    mutated = bytearray(original)
+    mutated[len(mutated) // 2] ^= 1
+    target.write_bytes(mutated)
 
-    with pytest.raises(ArtifactIntegrityError, match="mismatch"):
+    assert target.stat().st_size == len(original)
+    with pytest.raises(ArtifactIntegrityError, match="hash mismatch"):
         verify_published_audit_path_set(tmp_path / "published")
 
 
@@ -110,3 +131,28 @@ def test_failed_staging_preserves_previous_current_set(
     assert pointer_path.read_bytes() == previous_pointer
     verify_published_audit_path_set(publication_root)
     assert not list((publication_root / "sets").glob(".staging-*"))
+
+
+def test_pointer_replace_failure_preserves_current_and_cleans_temp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = _build_bundle()
+    publication_root = tmp_path / "published"
+    write_audit_path_bundle(bundle, publication_root)
+    pointer_path = publication_root / CURRENT_POINTER_FILE
+    previous_pointer = pointer_path.read_bytes()
+    original_replace = artifact_integrity.os.replace
+
+    def fail_pointer_replace(source, destination) -> None:
+        if Path(destination) == pointer_path:
+            raise OSError("simulated pointer replace failure")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(artifact_integrity.os, "replace", fail_pointer_replace)
+    with pytest.raises(OSError, match="pointer replace failure"):
+        write_audit_path_bundle(bundle, publication_root)
+
+    assert pointer_path.read_bytes() == previous_pointer
+    verify_published_audit_path_set(publication_root)
+    assert not list(publication_root.glob(f".{CURRENT_POINTER_FILE}.*.tmp"))
