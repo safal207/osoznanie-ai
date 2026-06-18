@@ -7,7 +7,6 @@ from osoznanie.consolidation import (
     AmbiguousMemoryHistoryError,
     ConsolidationEngine,
     MemoryMutation,
-    MemoryMutationKind,
 )
 from osoznanie.memory import MemoryObject, MemoryStatus, MemoryType
 from osoznanie.memory_view import (
