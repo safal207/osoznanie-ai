@@ -106,6 +106,14 @@ class DecisionTraceBuilder:
             raise OutcomeAlreadyAttachedError(
                 f"trace already references a different outcome: {trace.outcome_id}"
             )
+        observed_at = _aware_utc(
+            outcome.observed_at,
+            field_name="outcome.observed_at",
+        )
+        if observed_at < trace.decision_at:
+            raise DecisionTraceBuildError(
+                "outcome.observed_at must not be earlier than decision_at"
+            )
         return self._create(
             requester_id=trace.requester_id,
             agent_id=trace.agent_id,
@@ -124,10 +132,7 @@ class DecisionTraceBuilder:
             outcome_id=outcome.id,
             supersedes_trace_id=trace.id,
             trace_version=trace.trace_version + 1,
-            created_at=_aware_utc(
-                outcome.observed_at,
-                field_name="outcome.observed_at",
-            ),
+            created_at=observed_at,
         )
 
     @staticmethod
