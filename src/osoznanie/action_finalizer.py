@@ -10,7 +10,6 @@ from enum import StrEnum
 from .action_attempt import (
     ActionAttempt,
     ActionAttemptContractError,
-    ActionAttemptStatus,
     build_failed_attempt,
     build_succeeded_attempt,
     hash_lease_token,
