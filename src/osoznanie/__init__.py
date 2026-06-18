@@ -1,5 +1,11 @@
 """Public package interface for Osoznanie AI."""
 
+from .memory import (
+    MemoryObject,
+    MemoryStatus,
+    MemoryType,
+    resolve_active_memory,
+)
 from .models import (
     AccessPolicy,
     Commitment,
@@ -50,6 +56,9 @@ __all__ = [
     "IdentitySnapshot",
     "Lesson",
     "LessonScope",
+    "MemoryObject",
+    "MemoryStatus",
+    "MemoryType",
     "MissingReferenceError",
     "Outcome",
     "OutcomeStatus",
@@ -70,6 +79,7 @@ __all__ = [
     "TraitStability",
     "TrustLevel",
     "ValidationStatus",
+    "resolve_active_memory",
 ]
 
 __version__ = "0.1.0a1"
