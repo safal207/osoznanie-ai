@@ -1,9 +1,9 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from osoznanie.consolidation import (
-    AmbiguousMemoryHistoryError,
     ConsolidationEngine,
     ConsolidationResult,
     MemoryMutation,
@@ -46,7 +46,7 @@ def save_event(store: SQLiteExperienceStore, event_id: str) -> Event:
             id=event_id,
             actor_ids=["human_alexey"],
             summary=f"Source event {event_id}",
-            occurred_at=NOW,
+            timestamp=NOW,
             created_at=NOW,
         )
     )
@@ -176,9 +176,11 @@ def test_exact_duplicate_delivery_is_idempotent() -> None:
         expected_head_id=first.id,
         expected_version=1,
     )
+    head = store.get_memory_head(first.memory_key)
 
     assert delivered_again == committed
-    assert store.get_memory_head(first.memory_key).current_version == 2  # type: ignore[union-attr]
+    assert head is not None
+    assert head.current_version == 2
     assert [item.id for item in store.list("memory")] == [first.id, committed.id]
 
 
@@ -209,7 +211,9 @@ def test_skipped_version_is_rejected_without_changing_head() -> None:
             expected_version=1,
         )
 
-    assert store.get_memory_head(first.memory_key).current_id == first.id  # type: ignore[union-attr]
+    head = store.get_memory_head(first.memory_key)
+    assert head is not None
+    assert head.current_id == first.id
 
 
 def test_wrong_supersedes_link_is_rejected() -> None:
@@ -315,9 +319,11 @@ def test_independent_connections_reject_a_stale_writer(tmp_path) -> None:
             expected_version=1,
         )
 
+    head = stale_writer.get_memory_head(first.memory_key)
     assert raised.value.actual_head_id == winner.id
     assert raised.value.actual_version == 2
-    assert stale_writer.get_memory_head(first.memory_key).current_id == winner.id  # type: ignore[union-attr]
+    assert head is not None
+    assert head.current_id == winner.id
 
 
 def test_database_unique_index_detects_duplicate_memory_version() -> None:
@@ -336,7 +342,7 @@ def test_database_unique_index_detects_duplicate_memory_version() -> None:
         connection.execute("BEGIN IMMEDIATE")
         try:
             store._insert_record(connection, duplicate)
-            with pytest.raises(Exception):
+            with pytest.raises(sqlite3.IntegrityError):
                 connection.execute(
                     """
                     INSERT INTO memory_versions (memory_id, memory_key, version)
@@ -347,4 +353,6 @@ def test_database_unique_index_detects_duplicate_memory_version() -> None:
         finally:
             connection.execute("ROLLBACK")
 
-    assert store.get_memory_head(first.memory_key).current_id == first.id  # type: ignore[union-attr]
+    head = store.get_memory_head(first.memory_key)
+    assert head is not None
+    assert head.current_id == first.id
