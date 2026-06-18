@@ -236,6 +236,7 @@ The audited decision pipeline enforces these boundaries:
 - [Bitemporal Memory View v0.1](docs/bitemporal-memory-view-v0.1.md)
 - [Bitemporal Access Control v0.1](docs/bitemporal-access-control-v0.1.md)
 - [Audited Decision Orchestrator v0.1](docs/audited-decision-orchestrator-v0.1.md)
+- [Audited QA Demonstrator v0.1](docs/qa-demo-proof-v0.1.md)
 
 ## First demonstrator
 
