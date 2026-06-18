@@ -16,6 +16,14 @@ from .memory import (
     MemoryType,
     resolve_active_memory,
 )
+from .memory_repository import (
+    InvalidMemoryProgressionError,
+    MemoryHead,
+    MemoryRepository,
+    MemoryRepositoryError,
+    UnsafeMemoryWriteError,
+    VersionConflictError,
+)
 from .models import (
     AccessPolicy,
     Commitment,
@@ -68,11 +76,15 @@ __all__ = [
     "Event",
     "Hypothesis",
     "IdentitySnapshot",
+    "InvalidMemoryProgressionError",
     "Lesson",
     "LessonScope",
+    "MemoryHead",
     "MemoryMutation",
     "MemoryMutationKind",
     "MemoryObject",
+    "MemoryRepository",
+    "MemoryRepositoryError",
     "MemoryStatus",
     "MemoryType",
     "MemoryTypeChangeError",
@@ -96,7 +108,9 @@ __all__ = [
     "Trait",
     "TraitStability",
     "TrustLevel",
+    "UnsafeMemoryWriteError",
     "ValidationStatus",
+    "VersionConflictError",
     "resolve_active_memory",
 ]
 
