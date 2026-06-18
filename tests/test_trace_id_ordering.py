@@ -18,5 +18,12 @@ def test_trace_id_payload_is_order_stable_after_normalization() -> None:
         decision_at=now,
         created_at=now,
     )
-    right = left.model_copy(update={"policy_memory_ids": ["mem_a", "mem_b"], "memory_ids": ["mem_1", "mem_2"]})
-    assert DecisionTrace.derive_id(left.canonical_payload()) == DecisionTrace.derive_id(right.canonical_payload())
+    right = left.model_copy(
+        update={
+            "policy_memory_ids": ["mem_a", "mem_b"],
+            "memory_ids": ["mem_1", "mem_2"],
+        }
+    )
+    left_id = DecisionTrace.derive_id(left.canonical_payload())
+    right_id = DecisionTrace.derive_id(right.canonical_payload())
+    assert left_id == right_id
