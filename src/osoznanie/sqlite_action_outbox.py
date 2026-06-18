@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 
 from .action_outbox import (
     ActionIntent,
-    ActionIntentContractError,
     ActionIntentNotFoundError,
     ActionIntentProposal,
     ActionIntentStatus,
