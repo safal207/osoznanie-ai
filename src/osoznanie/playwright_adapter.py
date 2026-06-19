@@ -52,7 +52,13 @@ class PlaywrightQAAdapter:
         ).hexdigest()[:16]
         outcome_id = f"out_pw_{suffix}"
         if self.store.exists(outcome_id):
-            return ToolExecutionResult.succeeded(outcome_id)
+            existing = self.store.get(outcome_id)
+            if not isinstance(existing, Outcome):
+                return ToolExecutionResult.permanent("outcome_record_conflict")
+            return ToolExecutionResult.succeeded(
+                existing.id,
+                response_hash=_response_hash(existing),
+            )
 
         evidence = self.runner.run(request)
         event = Event(
