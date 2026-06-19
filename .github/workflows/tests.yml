@@ -62,8 +62,34 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -q -e ".[dev]"
-      - name: Test
-        run: pytest
+      - name: Test without optional browsers
+        run: pytest -m "not playwright"
+
+  playwright:
+    name: Playwright Chromium and memory benchmark
+    needs: [schema, lint, test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package and Playwright
+        run: python -m pip install -q -e ".[dev,browser]"
+      - name: Install Chromium and system dependencies
+        run: python -m playwright install --with-deps chromium
+      - name: Run real browser integration test
+        run: pytest -m playwright
+      - name: Generate Playwright memory-effect report
+        run: python -m benchmarks.run_playwright_memory --output benchmark-results/playwright
+      - name: Upload Playwright memory report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-memory-effect-report
+          path: benchmark-results/playwright/
+          if-no-files-found: error
 
   benchmark:
     name: benchmark reports
